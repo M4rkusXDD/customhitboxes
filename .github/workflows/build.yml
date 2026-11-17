@@ -686,6 +686,18 @@ jobs:
 
               // ---- lookups ----
 
+              /** Restores every setting to its default. Hotkeys are vanilla key bindings and are not touched. */
+              public void resetAll() {
+                  HitboxConfig defaults = new HitboxConfig();
+                  enabled = defaults.enabled;
+                  presetColors = defaults.presetColors;
+                  globalColorEnabled = defaults.globalColorEnabled;
+                  globalColor = defaults.globalColor;
+                  showEyeLine = defaults.showEyeLine;
+                  showLookVector = defaults.showLookVector;
+                  entities = new HashMap<>();
+              }
+
               public EntitySettings settings(String id) {
                   return entities.get(id);
               }
@@ -1309,6 +1321,7 @@ jobs:
               private List<Entry> filtered = new ArrayList<>();
               private TextFieldWidget search;
               private int firstRow = 0;
+              private long resetArmedUntil = 0;
               private int listTop;
               private int listBottom;
               private int left;
@@ -1397,6 +1410,17 @@ jobs:
                   listBottom = this.height - 30;
 
                   buttons.add(new UiButton((this.width - 100) / 2, this.height - 24, 100, 18, () -> "Done", this::close));
+                  buttons.add(new UiButton(left + panelW - 130, this.height - 24, 130, 18,
+                      () -> System.currentTimeMillis() < resetArmedUntil ? "Click again to confirm" : "Reset mod",
+                      () -> {
+                          if (System.currentTimeMillis() < resetArmedUntil) {
+                              cfg.resetAll();
+                              HitboxConfig.save();
+                              resetArmedUntil = 0;
+                          } else {
+                              resetArmedUntil = System.currentTimeMillis() + 4000;
+                          }
+                      }));
 
                   refilter(search.getText());
               }
