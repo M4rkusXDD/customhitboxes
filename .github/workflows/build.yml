@@ -1,0 +1,1570 @@
+name: Build Hitbox Customizer
+
+# Single-file setup: this workflow writes the whole mod project, then builds the jar.
+# Put it at .github/workflows/build.yml, push, then open Actions > latest run > Artifacts.
+# Push a tag like v1.0.0 to also attach the jar to a GitHub Release.
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.4.0'
+
+      - name: Write mod project files
+        run: |
+          mkdir -p mod && cd mod
+          cat > settings.gradle <<'HB_EOF'
+          pluginManagement {
+              repositories {
+                  maven {
+                      name = 'Fabric'
+                      url = 'https://maven.fabricmc.net/'
+                  }
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          rootProject.name = 'hitbox-customizer'
+          HB_EOF
+          cat > gradle.properties <<'HB_EOF'
+          org.gradle.jvmargs=-Xmx2G
+          org.gradle.parallel=true
+
+          # Minecraft / Fabric (1.21.11 is the last version that uses Yarn)
+          minecraft_version=1.21.11
+          yarn_mappings=1.21.11+build.4
+          loader_version=0.18.4
+          fabric_version=0.141.3+1.21.11
+
+          # Mod Menu is compile-only (optional at runtime)
+          modmenu_version=17.0.0
+
+          # Mod metadata
+          mod_version=1.0.0
+          maven_group=com.hitboxcustomizer
+          archives_base_name=hitbox-customizer
+          HB_EOF
+          cat > build.gradle <<'HB_EOF'
+          plugins {
+              id 'fabric-loom' version '1.14-SNAPSHOT'
+              id 'maven-publish'
+          }
+
+          version = project.mod_version
+          group = project.maven_group
+
+          base {
+              archivesName = project.archives_base_name
+          }
+
+          repositories {
+              maven { url "https://maven.terraformersmc.com/releases/" }
+          }
+
+          dependencies {
+              minecraft "com.mojang:minecraft:${project.minecraft_version}"
+              mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+              modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+              modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+              // Only needed to compile the Mod Menu entrypoint. Players install Mod Menu themselves.
+              modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+          }
+
+          processResources {
+              inputs.property "version", project.version
+              filesMatching("fabric.mod.json") {
+                  expand "version": project.version
+              }
+          }
+
+          tasks.withType(JavaCompile).configureEach {
+              it.options.release = 21
+          }
+
+          java {
+              sourceCompatibility = JavaVersion.VERSION_21
+              targetCompatibility = JavaVersion.VERSION_21
+          }
+          HB_EOF
+          mkdir -p src/main/resources
+          cat > src/main/resources/fabric.mod.json <<'HB_EOF'
+          {
+            "schemaVersion": 1,
+            "id": "hitboxcustomizer",
+            "version": "${version}",
+            "name": "Hitbox Customizer",
+            "description": "Customize the color and visibility of every entity's hitbox. Press H to open the menu.",
+            "authors": ["You"],
+            "license": "MIT",
+            "environment": "client",
+            "entrypoints": {
+              "client": ["com.hitboxcustomizer.HitboxCustomizerClient"],
+              "modmenu": ["com.hitboxcustomizer.gui.ModMenuIntegration"]
+            },
+            "mixins": ["hitboxcustomizer.mixins.json"],
+            "depends": {
+              "fabricloader": ">=0.18.1",
+              "minecraft": "~1.21.11",
+              "java": ">=21",
+              "fabric-api": "*"
+            },
+            "suggests": {
+              "modmenu": "*"
+            }
+          }
+          HB_EOF
+          mkdir -p src/main/resources
+          cat > src/main/resources/hitboxcustomizer.mixins.json <<'HB_EOF'
+          {
+            "required": true,
+            "minVersion": "0.8",
+            "package": "com.hitboxcustomizer.mixin",
+            "compatibilityLevel": "JAVA_21",
+            "client": [
+              "DebugRendererMixin",
+              "EntityHitboxDebugRendererMixin"
+            ],
+            "injectors": {
+              "defaultRequire": 1
+            }
+          }
+          HB_EOF
+          mkdir -p src/main/resources/assets/hitboxcustomizer/lang
+          cat > src/main/resources/assets/hitboxcustomizer/lang/en_us.json <<'HB_EOF'
+          {
+            "key.category.hitboxcustomizer.main": "Hitbox Customizer",
+            "key.hitboxcustomizer.open_menu": "Open Hitbox Menu",
+            "key.hitboxcustomizer.toggle_hitboxes": "Toggle Hitboxes"
+          }
+          HB_EOF
+          mkdir -p src/main/java/com/hitboxcustomizer
+          cat > src/main/java/com/hitboxcustomizer/EntityColors.java <<'HB_EOF'
+          package com.hitboxcustomizer;
+
+          import java.util.HashMap;
+          import java.util.Map;
+
+          /** Themed colors used by the "preset colors" option. Unknown entities get a stable color from a hash. */
+          public final class EntityColors {
+              private static final Map<String, Integer> BY_PATH = new HashMap<>();
+
+              private static void put(int rgb, String... paths) {
+                  for (String p : paths) {
+                      BY_PATH.put(p, rgb);
+                  }
+              }
+
+              static {
+                  // Players and NPCs
+                  put(0x3FA7D6, "player");
+                  put(0xB07A4B, "villager", "wandering_trader");
+                  put(0xD9C8A0, "llama", "trader_llama");
+
+                  // Undead
+                  put(0x2E8B57, "zombie");
+                  put(0x7CA35A, "zombie_villager");
+                  put(0xB89F6A, "husk");
+                  put(0x3AA7A0, "drowned");
+                  put(0xE8A090, "zombified_piglin");
+                  put(0xC8C8C8, "skeleton");
+                  put(0x9AD7E8, "stray");
+                  put(0x6B8E4E, "bogged");
+                  put(0x6E6E78, "wither_skeleton");
+                  put(0x7A7A9A, "wither");
+                  put(0xC9B8E8, "phantom");
+
+                  // Hostile
+                  put(0x4CAF50, "creeper");
+                  put(0x7A2E2E, "spider");
+                  put(0x1E8FB0, "cave_spider");
+                  put(0xA040E0, "enderman");
+                  put(0x7B3FA0, "endermite");
+                  put(0xC99BD6, "shulker");
+                  put(0xFFA500, "blaze");
+                  put(0xF5F5F5, "ghast");
+                  put(0xD9531E, "magma_cube");
+                  put(0x7EBF6E, "slime");
+                  put(0x9B59B6, "witch");
+                  put(0x5A6B6B, "pillager");
+                  put(0x7A8C8C, "vindicator");
+                  put(0xD0D0D0, "evoker");
+                  put(0x6C6C73, "ravager");
+                  put(0x9FC5E8, "vex");
+                  put(0x3B5BA8, "illusioner");
+                  put(0x1A8C9E, "warden");
+                  put(0xB347FF, "ender_dragon");
+                  put(0xAAB7C4, "silverfish");
+                  put(0x4FB3A5, "guardian");
+                  put(0xB59A8C, "elder_guardian");
+                  put(0x8EC9E8, "breeze");
+                  put(0x8A6A4F, "creaking");
+
+                  // Nether
+                  put(0xE0A87A, "piglin");
+                  put(0xC0794C, "piglin_brute");
+                  put(0xC77A5A, "hoglin");
+                  put(0x9A8B6A, "zoglin");
+                  put(0xD13B3B, "strider");
+
+                  // Passive land
+                  put(0xF4A6B4, "pig");
+                  put(0x6B4A3A, "cow");
+                  put(0xD32F2F, "mooshroom");
+                  put(0xE8E8E8, "sheep");
+                  put(0xF5F0DC, "chicken");
+                  put(0x8B5A2B, "horse");
+                  put(0x8A7F73, "donkey");
+                  put(0x5E4B3C, "mule");
+                  put(0xD8C9A8, "skeleton_horse");
+                  put(0x7FA67A, "zombie_horse");
+                  put(0xCFCFCF, "wolf");
+                  put(0xE0A050, "cat");
+                  put(0xE3B04B, "ocelot");
+                  put(0xE87A2F, "fox");
+                  put(0xB89A7A, "rabbit");
+                  put(0xF2C230, "bee");
+                  put(0xDDDDDD, "panda");
+                  put(0xF8F8FF, "polar_bear");
+                  put(0xE0DCD5, "goat");
+                  put(0xD8B36A, "camel", "camel_husk");
+                  put(0xB0413E, "sniffer");
+                  put(0xE53935, "parrot");
+                  put(0x6B5B4B, "bat");
+                  put(0xF4A6C8, "axolotl");
+                  put(0x7BAE5A, "frog");
+                  put(0x4E6B3E, "tadpole");
+                  put(0x4F8F3F, "turtle");
+                  put(0xDAD3E8, "happy_ghast");
+
+                  // Water
+                  put(0x2F6EA5, "squid");
+                  put(0x39D6C4, "glow_squid");
+                  put(0x6E93AE, "dolphin");
+                  put(0xC9A66B, "cod");
+                  put(0xB5483A, "salmon");
+                  put(0xE8D44D, "pufferfish");
+                  put(0xFF8C42, "tropical_fish");
+
+                  // Golems and helpers
+                  put(0xC9C9C9, "iron_golem");
+                  put(0xF0F8FF, "snow_golem");
+                  put(0xC77B4A, "copper_golem");
+                  put(0x4FC3F7, "allay");
+
+                  // Objects
+                  put(0xB38B5D, "armor_stand");
+                  put(0xE6C84A, "item");
+                  put(0x7CFC00, "experience_orb");
+                  put(0xA0A0A0, "arrow", "spectral_arrow");
+                  put(0x80CBC4, "trident");
+                  put(0xFF6A00, "fireball", "small_fireball", "dragon_fireball");
+                  put(0xE53935, "tnt");
+                  put(0xA1887F, "falling_block");
+                  put(0x8D6E63, "oak_boat", "spruce_boat", "birch_boat", "jungle_boat", "acacia_boat",
+                      "dark_oak_boat", "mangrove_boat", "cherry_boat", "pale_oak_boat", "bamboo_raft");
+                  put(0x90A4AE, "minecart", "chest_minecart", "furnace_minecart", "hopper_minecart",
+                      "tnt_minecart", "spawner_minecart", "command_block_minecart");
+                  put(0xFF66CC, "end_crystal");
+                  put(0xFFFF66, "lightning_bolt");
+                  put(0x66BB6A, "ender_pearl", "snowball", "egg");
+                  put(0xFFB74D, "item_frame", "glow_item_frame", "painting");
+              }
+
+              private EntityColors() {
+              }
+
+              public static int forId(String id) {
+                  int colon = id.indexOf(':');
+                  String namespace = colon >= 0 ? id.substring(0, colon) : "minecraft";
+                  String path = colon >= 0 ? id.substring(colon + 1) : id;
+
+                  if (namespace.equals("minecraft")) {
+                      Integer known = BY_PATH.get(path);
+                      if (known != null) {
+                          return known;
+                      }
+                  }
+                  // Stable fallback color so modded entities are still distinguishable.
+                  int hash = id.hashCode();
+                  float hue = ((hash & 0x7FFFFFFF) % 360) / 360.0f;
+                  return hsvToRgb(hue, 0.65f, 1.0f);
+              }
+
+              public static int hsvToRgb(float h, float s, float v) {
+                  float c = v * s;
+                  float hp = (h * 6.0f) % 6.0f;
+                  float x = c * (1.0f - Math.abs(hp % 2.0f - 1.0f));
+                  float r = 0, g = 0, b = 0;
+                  switch ((int) hp) {
+                      case 0 -> { r = c; g = x; }
+                      case 1 -> { r = x; g = c; }
+                      case 2 -> { g = c; b = x; }
+                      case 3 -> { g = x; b = c; }
+                      case 4 -> { r = x; b = c; }
+                      default -> { r = c; b = x; }
+                  }
+                  float m = v - c;
+                  int ri = Math.round((r + m) * 255.0f);
+                  int gi = Math.round((g + m) * 255.0f);
+                  int bi = Math.round((b + m) * 255.0f);
+                  return (ri << 16) | (gi << 8) | bi;
+              }
+
+              /** Returns {h, s, v}, each in 0..1. */
+              public static float[] rgbToHsv(int rgb) {
+                  float r = ((rgb >> 16) & 0xFF) / 255.0f;
+                  float g = ((rgb >> 8) & 0xFF) / 255.0f;
+                  float b = (rgb & 0xFF) / 255.0f;
+                  float max = Math.max(r, Math.max(g, b));
+                  float min = Math.min(r, Math.min(g, b));
+                  float d = max - min;
+                  float h;
+                  if (d == 0) {
+                      h = 0;
+                  } else if (max == r) {
+                      h = ((g - b) / d) % 6.0f;
+                  } else if (max == g) {
+                      h = (b - r) / d + 2.0f;
+                  } else {
+                      h = (r - g) / d + 4.0f;
+                  }
+                  h /= 6.0f;
+                  if (h < 0) {
+                      h += 1.0f;
+                  }
+                  float s = max == 0 ? 0 : d / max;
+                  return new float[]{h, s, max};
+              }
+          }
+          HB_EOF
+          mkdir -p src/main/java/com/hitboxcustomizer
+          cat > src/main/java/com/hitboxcustomizer/HitboxCustomizerClient.java <<'HB_EOF'
+          package com.hitboxcustomizer;
+
+          import com.hitboxcustomizer.config.HitboxConfig;
+          import com.hitboxcustomizer.gui.HitboxMenuScreen;
+          import net.fabricmc.api.ClientModInitializer;
+          import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+          import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+          import net.minecraft.client.option.KeyBinding;
+          import net.minecraft.client.util.InputUtil;
+          import net.minecraft.util.Identifier;
+          import org.lwjgl.glfw.GLFW;
+
+          public class HitboxCustomizerClient implements ClientModInitializer {
+              public static final String MOD_ID = "hitboxcustomizer";
+
+              private static final KeyBinding.Category CATEGORY =
+                  KeyBinding.Category.create(Identifier.of(MOD_ID, "main"));
+
+              private static KeyBinding openMenuKey;
+              private static KeyBinding toggleHitboxesKey;
+
+              @Override
+              public void onInitializeClient() {
+                  HitboxConfig.load();
+
+                  // Opens the menu. Defaults to H, rebindable in Options > Controls.
+                  openMenuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                      "key.hitboxcustomizer.open_menu", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_H, CATEGORY));
+
+                  // Quick on/off for hitboxes (same effect as F3+B). Unbound by default.
+                  toggleHitboxesKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                      "key.hitboxcustomizer.toggle_hitboxes", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, CATEGORY));
+
+                  ClientTickEvents.END_CLIENT_TICK.register(client -> {
+                      while (openMenuKey.wasPressed()) {
+                          if (client.currentScreen == null) {
+                              client.setScreen(new HitboxMenuScreen(null));
+                          }
+                      }
+                      while (toggleHitboxesKey.wasPressed()) {
+                          HitboxRenderer.quickToggle(client);
+                      }
+                  });
+              }
+          }
+          HB_EOF
+          mkdir -p src/main/java/com/hitboxcustomizer
+          cat > src/main/java/com/hitboxcustomizer/HitboxRenderer.java <<'HB_EOF'
+          package com.hitboxcustomizer;
+
+          import com.hitboxcustomizer.config.HitboxConfig;
+          import net.minecraft.client.MinecraftClient;
+          import net.minecraft.client.render.DrawStyle;
+          import net.minecraft.client.render.Frustum;
+          import net.minecraft.entity.Entity;
+          import net.minecraft.entity.EntityType;
+          import net.minecraft.entity.LivingEntity;
+          import net.minecraft.entity.boss.dragon.EnderDragonEntity;
+          import net.minecraft.entity.boss.dragon.EnderDragonPart;
+          import net.minecraft.registry.Registries;
+          import net.minecraft.text.Text;
+          import net.minecraft.util.Identifier;
+          import net.minecraft.util.math.Box;
+          import net.minecraft.util.math.Vec3d;
+          import net.minecraft.world.debug.gizmo.GizmoDrawing;
+
+          import java.util.HashMap;
+          import java.util.Map;
+
+          /**
+           * Draws hitboxes itself and silences vanilla's per-entity drawing, so color and visibility can be
+           * controlled per entity type. Vanilla's F3+B state is still respected: "Default" visibility means
+           * "visible while F3+B (or the quick toggle hotkey) has hitboxes on".
+           */
+          public final class HitboxRenderer {
+              private static final Identifier VANILLA_HITBOX_ENTRY = Identifier.ofVanilla("entity_hitboxes");
+              private static final Map<EntityType<?>, String> ID_CACHE = new HashMap<>();
+
+              /** Set by the vanilla hitbox renderer mixin whenever vanilla would draw hitboxes this frame. */
+              public static boolean vanillaSeen = false;
+              private static boolean vanillaActive = false;
+              /** State of the quick toggle hotkey. */
+              private static boolean quickOn = false;
+
+              private HitboxRenderer() {
+              }
+
+              public static boolean isDefaultOn() {
+                  return quickOn || vanillaActive;
+              }
+
+              public static void quickToggle(MinecraftClient mc) {
+                  if (isDefaultOn()) {
+                      quickOn = false;
+                      if (vanillaActive) {
+                          try {
+                              mc.debugHudEntryList.toggleVisibility(VANILLA_HITBOX_ENTRY);
+                          } catch (Throwable ignored) {
+                              // If this ever fails, F3+B still works for turning vanilla hitboxes off.
+                          }
+                      }
+                  } else {
+                      quickOn = true;
+                  }
+                  if (mc.player != null) {
+                      mc.player.sendMessage(Text.literal("Hitboxes: " + (isDefaultOn() ? "ON" : "OFF")), true);
+                  }
+              }
+
+              public static void onFrame(Frustum frustum, double camX, double camY, double camZ, float tickProgress) {
+                  vanillaActive = vanillaSeen;
+                  vanillaSeen = false;
+                  render(frustum, camX, camY, camZ, tickProgress);
+              }
+
+              public static String idOf(Entity entity) {
+                  return ID_CACHE.computeIfAbsent(entity.getType(), t -> Registries.ENTITY_TYPE.getId(t).toString());
+              }
+
+              private static void render(Frustum frustum, double camX, double camY, double camZ, float tickProgress) {
+                  MinecraftClient mc = MinecraftClient.getInstance();
+                  HitboxConfig cfg = HitboxConfig.get();
+                  if (!cfg.enabled || mc.world == null) {
+                      return;
+                  }
+
+                  boolean defaultOn = isDefaultOn();
+                  boolean firstPerson = mc.options.getPerspective().isFirstPerson();
+                  double maxSq = (double) cfg.maxDistance * cfg.maxDistance;
+
+                  for (Entity entity : mc.world.getEntities()) {
+                      if (entity == mc.player && firstPerson) {
+                          continue;
+                      }
+
+                      String id = idOf(entity);
+                      boolean show = switch (cfg.modeFor(id)) {
+                          case ALWAYS -> true;
+                          case NEVER -> false;
+                          case DEFAULT -> defaultOn;
+                      };
+                      if (!show) {
+                          continue;
+                      }
+                      if (entity.squaredDistanceTo(camX, camY, camZ) > maxSq) {
+                          continue;
+                      }
+
+                      Vec3d lerped = entity.getLerpedPos(tickProgress);
+                      Box box = entity.getBoundingBox().offset(
+                          lerped.x - entity.getX(), lerped.y - entity.getY(), lerped.z - entity.getZ());
+                      if (!(entity instanceof EnderDragonEntity) && !frustum.isVisible(box.expand(0.5))) {
+                          continue;
+                      }
+
+                      int argb = 0xFF000000 | cfg.colorFor(id);
+                      GizmoDrawing.box(box, DrawStyle.stroked(argb));
+
+                      if (entity instanceof EnderDragonEntity dragon) {
+                          for (EnderDragonPart part : dragon.getBodyParts()) {
+                              GizmoDrawing.box(part.getBoundingBox(), DrawStyle.stroked(argb));
+                          }
+                      }
+
+                      if (entity instanceof LivingEntity) {
+                          double eyeY = lerped.y + entity.getStandingEyeHeight();
+                          if (cfg.showEyeLine) {
+                              Box eye = new Box(box.minX, eyeY - 0.01, box.minZ, box.maxX, eyeY + 0.01, box.maxZ);
+                              GizmoDrawing.box(eye, DrawStyle.stroked(0xFFFF0000));
+                          }
+                          if (cfg.showLookVector) {
+                              Vec3d start = new Vec3d(lerped.x, eyeY, lerped.z);
+                              Vec3d end = start.add(entity.getRotationVec(tickProgress).multiply(2.0));
+                              GizmoDrawing.line(start, end, 0xFF0000FF);
+                          }
+                      }
+                  }
+              }
+          }
+          HB_EOF
+          mkdir -p src/main/java/com/hitboxcustomizer/config
+          cat > src/main/java/com/hitboxcustomizer/config/HitboxConfig.java <<'HB_EOF'
+          package com.hitboxcustomizer.config;
+
+          import com.google.gson.Gson;
+          import com.google.gson.GsonBuilder;
+          import com.hitboxcustomizer.EntityColors;
+          import net.fabricmc.loader.api.FabricLoader;
+
+          import java.io.Reader;
+          import java.nio.file.Files;
+          import java.nio.file.Path;
+          import java.util.HashMap;
+          import java.util.Map;
+
+          public class HitboxConfig {
+
+              public enum Mode {
+                  DEFAULT("Default"),
+                  ALWAYS("Always on"),
+                  NEVER("Never on");
+
+                  private final String label;
+
+                  Mode(String label) {
+                      this.label = label;
+                  }
+
+                  public String label() {
+                      return label;
+                  }
+
+                  public Mode next() {
+                      Mode[] all = values();
+                      return all[(ordinal() + 1) % all.length];
+                  }
+              }
+
+              public static class EntitySettings {
+                  public boolean useCustomColor = false;
+                  public int color = 0xFFFFFF;
+                  public Mode mode = Mode.DEFAULT;
+
+                  public boolean isDefault() {
+                      return !useCustomColor && mode == Mode.DEFAULT;
+                  }
+              }
+
+              // Master switch. When off, vanilla hitbox rendering is left completely alone.
+              public boolean enabled = true;
+              // Use a themed color for every entity (creeper green, enderman purple, ...).
+              public boolean presetColors = false;
+              // Force every hitbox to one color. Wins over everything else.
+              public boolean globalColorEnabled = false;
+              public int globalColor = 0xFFFFFF;
+              // Vanilla extras: red eye-height line and blue look vector.
+              public boolean showEyeLine = true;
+              public boolean showLookVector = true;
+              // Hitboxes farther than this (in blocks) are skipped.
+              public int maxDistance = 64;
+              // Per entity type settings, keyed by registry id such as "minecraft:creeper".
+              public Map<String, EntitySettings> entities = new HashMap<>();
+
+              // ---- lookups ----
+
+              public EntitySettings settings(String id) {
+                  return entities.get(id);
+              }
+
+              public EntitySettings edit(String id) {
+                  return entities.computeIfAbsent(id, key -> new EntitySettings());
+              }
+
+              public void tidy(String id) {
+                  EntitySettings s = entities.get(id);
+                  if (s != null && s.isDefault()) {
+                      entities.remove(id);
+                  }
+              }
+
+              public Mode modeFor(String id) {
+                  EntitySettings s = entities.get(id);
+                  return s == null || s.mode == null ? Mode.DEFAULT : s.mode;
+              }
+
+              /** Priority: global override, then the entity's own color, then preset, then vanilla white. */
+              public int colorFor(String id) {
+                  if (globalColorEnabled) {
+                      return globalColor & 0xFFFFFF;
+                  }
+                  EntitySettings s = entities.get(id);
+                  if (s != null && s.useCustomColor) {
+                      return s.color & 0xFFFFFF;
+                  }
+                  if (presetColors) {
+                      return EntityColors.forId(id);
+                  }
+                  return 0xFFFFFF;
+              }
+
+              public String colorSource(String id) {
+                  if (globalColorEnabled) {
+                      return "Override-all color";
+                  }
+                  EntitySettings s = entities.get(id);
+                  if (s != null && s.useCustomColor) {
+                      return "Custom color";
+                  }
+                  if (presetColors) {
+                      return "Preset color";
+                  }
+                  return "Vanilla white";
+              }
+
+              // ---- persistence ----
+
+              private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+              private static HitboxConfig instance = new HitboxConfig();
+
+              public static HitboxConfig get() {
+                  return instance;
+              }
+
+              private static Path path() {
+                  return FabricLoader.getInstance().getConfigDir().resolve("hitboxcustomizer.json");
+              }
+
+              public static void load() {
+                  Path p = path();
+                  if (Files.exists(p)) {
+                      try (Reader reader = Files.newBufferedReader(p)) {
+                          HitboxConfig loaded = GSON.fromJson(reader, HitboxConfig.class);
+                          if (loaded != null) {
+                              instance = loaded;
+                          }
+                      } catch (Exception e) {
+                          System.err.println("[Hitbox Customizer] Could not read config, using defaults: " + e);
+                      }
+                  }
+                  instance.normalize();
+                  save();
+              }
+
+              public static void save() {
+                  try {
+                      Files.writeString(path(), GSON.toJson(instance));
+                  } catch (Exception e) {
+                      System.err.println("[Hitbox Customizer] Could not write config: " + e);
+                  }
+              }
+
+              private void normalize() {
+                  if (entities == null) {
+                      entities = new HashMap<>();
+                  }
+                  entities.values().removeIf(s -> s == null);
+                  for (EntitySettings s : entities.values()) {
+                      if (s.mode == null) {
+                          s.mode = Mode.DEFAULT;
+                      }
+                  }
+                  maxDistance = Math.max(8, Math.min(512, maxDistance));
+              }
+          }
+          HB_EOF
+          mkdir -p src/main/java/com/hitboxcustomizer/gui
+          cat > src/main/java/com/hitboxcustomizer/gui/ColorPickerScreen.java <<'HB_EOF'
+          package com.hitboxcustomizer.gui;
+
+          import com.hitboxcustomizer.EntityColors;
+          import net.minecraft.client.gui.Click;
+          import net.minecraft.client.gui.DrawContext;
+          import net.minecraft.client.gui.screen.Screen;
+          import net.minecraft.client.gui.widget.TextFieldWidget;
+          import net.minecraft.text.Text;
+          import net.minecraft.util.math.MathHelper;
+
+          import java.util.Locale;
+          import java.util.function.IntConsumer;
+
+          /** Hue bar + saturation/brightness square + hex box. */
+          public class ColorPickerScreen extends Screen {
+              private static final int SV = 120;
+              private static final int PW = 262;
+              private static final int PH = 214;
+              private static final int[] PRESETS = {
+                  0xFFFFFF, 0xFF4D4D, 0xFFA94D, 0xFFE14D, 0x4DFF6E,
+                  0x4DFFE1, 0x4D9EFF, 0x9B4DFF, 0xFF4DD8, 0x000000
+              };
+
+              private final Screen parent;
+              private final IntConsumer onApply;
+              private final int originalRgb;
+              private float hue;
+              private float sat;
+              private float val;
+              private int drag = 0; // 0 none, 1 square, 2 hue bar
+
+              private TextFieldWidget hexField;
+              private boolean syncing;
+              private UiButton apply;
+              private UiButton cancel;
+
+              public ColorPickerScreen(Screen parent, String title, int startRgb, IntConsumer onApply) {
+                  super(Text.literal(title));
+                  this.parent = parent;
+                  this.onApply = onApply;
+                  this.originalRgb = startRgb & 0xFFFFFF;
+                  float[] hsv = EntityColors.rgbToHsv(originalRgb);
+                  this.hue = hsv[0];
+                  this.sat = hsv[1];
+                  this.val = hsv[2];
+              }
+
+              private int px() {
+                  return (this.width - PW) / 2;
+              }
+
+              private int py() {
+                  return (this.height - PH) / 2;
+              }
+
+              private int svX() {
+                  return px() + 14;
+              }
+
+              private int svY() {
+                  return py() + 30;
+              }
+
+              private int hueX() {
+                  return svX() + SV + 10;
+              }
+
+              private int rightX() {
+                  return hueX() + 14 + 12;
+              }
+
+              private int rightW() {
+                  return px() + PW - 14 - rightX();
+              }
+
+              private int presetsY() {
+                  return svY() + SV + 10;
+              }
+
+              private int rgb() {
+                  return EntityColors.hsvToRgb(hue, sat, val);
+              }
+
+              private String hex() {
+                  return String.format(Locale.ROOT, "#%06X", rgb());
+              }
+
+              @Override
+              protected void init() {
+                  hexField = new TextFieldWidget(this.textRenderer, rightX(), svY() + 58, rightW(), 16, Text.literal("Hex"));
+                  hexField.setMaxLength(7);
+                  hexField.setText(hex());
+                  hexField.setChangedListener(text -> {
+                      if (syncing) {
+                          return;
+                      }
+                      String raw = text.startsWith("#") ? text.substring(1) : text;
+                      if (raw.length() == 3) {
+                          raw = "" + raw.charAt(0) + raw.charAt(0) + raw.charAt(1) + raw.charAt(1) + raw.charAt(2) + raw.charAt(2);
+                      }
+                      if (raw.length() == 6) {
+                          try {
+                              float[] hsv = EntityColors.rgbToHsv(Integer.parseInt(raw, 16));
+                              hue = hsv[0];
+                              sat = hsv[1];
+                              val = hsv[2];
+                          } catch (NumberFormatException ignored) {
+                          }
+                      }
+                  });
+                  addDrawableChild(hexField);
+
+                  int by = py() + PH - 26;
+                  apply = new UiButton(px() + PW - 14 - 70, by, 70, 18, () -> "Apply", () -> {
+                      onApply.accept(rgb());
+                      close();
+                  });
+                  cancel = new UiButton(px() + PW - 14 - 70 - 6 - 60, by, 60, 18, () -> "Cancel", this::close);
+              }
+
+              private void syncHex() {
+                  syncing = true;
+                  hexField.setText(hex());
+                  syncing = false;
+              }
+
+              @Override
+              public void render(DrawContext g, int mouseX, int mouseY, float delta) {
+                  g.fill(0, 0, this.width, this.height, Theme.DIM_BG);
+
+                  int px = px();
+                  int py = py();
+                  g.fill(px, py, px + PW, py + PH, Theme.PANEL);
+                  g.drawStrokedRectangle(px, py, PW, PH, Theme.BORDER);
+                  g.drawText(this.textRenderer, this.title, px + 14, py + 10, Theme.TEXT, false);
+
+                  // Saturation (x) and brightness (y) square.
+                  int sx = svX();
+                  int sy = svY();
+                  for (int i = 0; i < SV; i++) {
+                      float s = i / (float) (SV - 1);
+                      int top = 0xFF000000 | EntityColors.hsvToRgb(hue, s, 1.0f);
+                      g.fillGradient(sx + i, sy, sx + i + 1, sy + SV, top, 0xFF000000);
+                  }
+                  g.drawStrokedRectangle(sx - 1, sy - 1, SV + 2, SV + 2, Theme.BORDER);
+                  int mx = sx + Math.round(sat * (SV - 1));
+                  int my = sy + Math.round((1.0f - val) * (SV - 1));
+                  g.drawStrokedRectangle(mx - 4, my - 4, 9, 9, 0xFF000000);
+                  g.drawStrokedRectangle(mx - 3, my - 3, 7, 7, 0xFFFFFFFF);
+
+                  // Hue bar.
+                  int hx = hueX();
+                  int seg = SV / 6;
+                  for (int k = 0; k < 6; k++) {
+                      int c1 = 0xFF000000 | EntityColors.hsvToRgb((k / 6.0f) % 1.0f, 1.0f, 1.0f);
+                      int c2 = 0xFF000000 | EntityColors.hsvToRgb(((k + 1) / 6.0f) % 1.0f, 1.0f, 1.0f);
+                      g.fillGradient(hx, sy + k * seg, hx + 14, sy + (k + 1) * seg, c1, c2);
+                  }
+                  g.drawStrokedRectangle(hx - 1, sy - 1, 16, SV + 2, Theme.BORDER);
+                  int hy = sy + Math.round(hue * (SV - 1));
+                  g.drawStrokedRectangle(hx - 3, hy - 2, 20, 5, 0xFFFFFFFF);
+
+                  // Preview: new color on top, original underneath.
+                  int rx = rightX();
+                  int rw = rightW();
+                  g.drawText(this.textRenderer, "New", rx, sy, Theme.DIM, false);
+                  g.fill(rx, sy + 10, rx + rw, sy + 30, 0xFF000000 | rgb());
+                  g.drawStrokedRectangle(rx, sy + 10, rw, 20, Theme.BORDER);
+                  g.drawText(this.textRenderer, "Old", rx, sy + 33, Theme.DIM, false);
+                  g.fill(rx, sy + 43, rx + rw / 2, sy + 51, 0xFF000000 | originalRgb);
+                  g.drawText(this.textRenderer, "Hex", rx, sy + 90, Theme.DIM, false);
+
+                  // Quick presets.
+                  int pyy = presetsY();
+                  for (int i = 0; i < PRESETS.length; i++) {
+                      int x = px + 14 + i * 16;
+                      boolean hov = mouseX >= x && mouseX < x + 12 && mouseY >= pyy && mouseY < pyy + 12;
+                      g.fill(x, pyy, x + 12, pyy + 12, 0xFF000000 | PRESETS[i]);
+                      g.drawStrokedRectangle(x, pyy, 12, 12, hov ? 0xFFFFFFFF : 0x60FFFFFF);
+                  }
+
+                  super.render(g, mouseX, mouseY, delta);
+                  apply.draw(g, this.textRenderer, mouseX, mouseY);
+                  cancel.draw(g, this.textRenderer, mouseX, mouseY);
+              }
+
+              private void updateSquare(double mx, double my) {
+                  sat = MathHelper.clamp((float) ((mx - svX()) / (SV - 1)), 0.0f, 1.0f);
+                  val = 1.0f - MathHelper.clamp((float) ((my - svY()) / (SV - 1)), 0.0f, 1.0f);
+                  syncHex();
+              }
+
+              private void updateHue(double my) {
+                  hue = MathHelper.clamp((float) ((my - svY()) / (SV - 1)), 0.0f, 0.9999f);
+                  syncHex();
+              }
+
+              @Override
+              public boolean mouseClicked(Click click, boolean doubled) {
+                  if (super.mouseClicked(click, doubled)) {
+                      return true;
+                  }
+                  if (click.button() != 0) {
+                      return false;
+                  }
+                  double mx = click.x();
+                  double my = click.y();
+
+                  if (mx >= svX() && mx < svX() + SV && my >= svY() && my < svY() + SV) {
+                      drag = 1;
+                      updateSquare(mx, my);
+                      return true;
+                  }
+                  if (mx >= hueX() - 2 && mx < hueX() + 16 && my >= svY() && my < svY() + SV) {
+                      drag = 2;
+                      updateHue(my);
+                      return true;
+                  }
+                  for (int i = 0; i < PRESETS.length; i++) {
+                      int x = px() + 14 + i * 16;
+                      if (mx >= x && mx < x + 12 && my >= presetsY() && my < presetsY() + 12) {
+                          float[] hsv = EntityColors.rgbToHsv(PRESETS[i]);
+                          hue = hsv[0];
+                          sat = hsv[1];
+                          val = hsv[2];
+                          syncHex();
+                          return true;
+                      }
+                  }
+                  if (apply.contains(mx, my)) {
+                      apply.click();
+                      return true;
+                  }
+                  if (cancel.contains(mx, my)) {
+                      cancel.click();
+                      return true;
+                  }
+                  return false;
+              }
+
+              @Override
+              public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+                  if (drag == 1) {
+                      updateSquare(click.x(), click.y());
+                      return true;
+                  }
+                  if (drag == 2) {
+                      updateHue(click.y());
+                      return true;
+                  }
+                  return super.mouseDragged(click, offsetX, offsetY);
+              }
+
+              @Override
+              public boolean mouseReleased(Click click) {
+                  if (drag != 0) {
+                      drag = 0;
+                      return true;
+                  }
+                  return super.mouseReleased(click);
+              }
+
+              @Override
+              public void close() {
+                  this.client.setScreen(parent);
+              }
+          }
+          HB_EOF
+          mkdir -p src/main/java/com/hitboxcustomizer/gui
+          cat > src/main/java/com/hitboxcustomizer/gui/EntityEditScreen.java <<'HB_EOF'
+          package com.hitboxcustomizer.gui;
+
+          import com.hitboxcustomizer.config.HitboxConfig;
+          import net.minecraft.client.gui.Click;
+          import net.minecraft.client.gui.DrawContext;
+          import net.minecraft.client.gui.screen.Screen;
+          import net.minecraft.text.Text;
+
+          import java.util.ArrayList;
+          import java.util.List;
+
+          /** Color and visibility settings for one entity type. */
+          public class EntityEditScreen extends Screen {
+              private static final int PW = 300;
+              private static final int PH = 218;
+
+              private final Screen parent;
+              private final String entityId;
+              private final String entityName;
+              private final List<UiButton> buttons = new ArrayList<>();
+
+              public EntityEditScreen(Screen parent, String entityId, String entityName) {
+                  super(Text.literal(entityName));
+                  this.parent = parent;
+                  this.entityId = entityId;
+                  this.entityName = entityName;
+              }
+
+              private int px() {
+                  return (this.width - PW) / 2;
+              }
+
+              private int py() {
+                  return (this.height - PH) / 2;
+              }
+
+              @Override
+              protected void init() {
+                  buttons.clear();
+                  HitboxConfig cfg = HitboxConfig.get();
+                  int x = px() + 14;
+                  int w = PW - 28;
+                  int y = py() + 84;
+
+                  buttons.add(new UiButton(x, y, w, 18,
+                      () -> "Use custom color: " + (isCustom() ? "ON" : "OFF"),
+                      () -> {
+                          HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                          s.useCustomColor = !s.useCustomColor;
+                          save();
+                      }));
+
+                  buttons.add(new UiButton(x, y + 22, w, 18,
+                      () -> "Choose color...",
+                      () -> {
+                          HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                          this.client.setScreen(new ColorPickerScreen(this, "Hitbox color: " + entityName, s.color, rgb -> {
+                              HitboxConfig.EntitySettings edited = cfg.edit(entityId);
+                              edited.color = rgb;
+                              edited.useCustomColor = true;
+                              save();
+                          }));
+                      }).withSwatch(() -> {
+                          HitboxConfig.EntitySettings s = cfg.settings(entityId);
+                          return s == null ? 0xFFFFFF : s.color;
+                      }));
+
+                  buttons.add(new UiButton(x, y + 44, w, 18,
+                      () -> "Show hitbox: " + cfg.modeFor(entityId).label(),
+                      () -> {
+                          HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                          s.mode = s.mode.next();
+                          save();
+                      }));
+
+                  buttons.add(new UiButton(x, y + 66, (w - 6) / 2, 18,
+                      () -> "Reset this entity",
+                      () -> {
+                          cfg.entities.remove(entityId);
+                          HitboxConfig.save();
+                      }));
+
+                  buttons.add(new UiButton(x + (w - 6) / 2 + 6, y + 66, (w - 6) / 2, 18,
+                      () -> "Back",
+                      this::close));
+              }
+
+              private boolean isCustom() {
+                  HitboxConfig.EntitySettings s = HitboxConfig.get().settings(entityId);
+                  return s != null && s.useCustomColor;
+              }
+
+              private void save() {
+                  HitboxConfig.save();
+              }
+
+              @Override
+              public void render(DrawContext g, int mouseX, int mouseY, float delta) {
+                  HitboxConfig cfg = HitboxConfig.get();
+                  g.fill(0, 0, this.width, this.height, Theme.DIM_BG);
+
+                  int px = px();
+                  int py = py();
+                  g.fill(px, py, px + PW, py + PH, Theme.PANEL);
+                  g.drawStrokedRectangle(px, py, PW, PH, Theme.BORDER);
+
+                  g.drawText(this.textRenderer, entityName, px + 14, py + 10, Theme.TEXT, false);
+                  g.drawText(this.textRenderer, entityId, px + 14, py + 22, Theme.DIM, false);
+
+                  int color = cfg.colorFor(entityId);
+                  g.fill(px + 14, py + 38, px + 14 + 40, py + 38 + 40, 0xFF000000 | color);
+                  g.drawStrokedRectangle(px + 14, py + 38, 40, 40, 0xA0FFFFFF);
+                  g.drawText(this.textRenderer, String.format("Current color: #%06X", color), px + 64, py + 46, Theme.TEXT, false);
+                  g.drawText(this.textRenderer, "Source: " + cfg.colorSource(entityId), px + 64, py + 58, Theme.DIM, false);
+
+                  for (UiButton b : buttons) {
+                      b.draw(g, this.textRenderer, mouseX, mouseY);
+                  }
+
+                  int ty = py + 84 + 66 + 26;
+                  g.drawText(this.textRenderer, "Default: shown while hitboxes are on (F3+B or hotkey).", px + 14, ty, Theme.DIM, false);
+                  g.drawText(this.textRenderer, "Always on: shown even when hitboxes are off.", px + 14, ty + 11, Theme.DIM, false);
+                  g.drawText(this.textRenderer, "Never on: never shown.", px + 14, ty + 22, Theme.DIM, false);
+
+                  super.render(g, mouseX, mouseY, delta);
+              }
+
+              @Override
+              public boolean mouseClicked(Click click, boolean doubled) {
+                  if (click.button() == 0) {
+                      for (UiButton b : buttons) {
+                          if (b.contains(click.x(), click.y())) {
+                              b.click();
+                              return true;
+                          }
+                      }
+                  }
+                  return super.mouseClicked(click, doubled);
+              }
+
+              @Override
+              public void removed() {
+                  HitboxConfig.get().tidy(entityId);
+                  HitboxConfig.save();
+              }
+
+              @Override
+              public void close() {
+                  this.client.setScreen(parent);
+              }
+          }
+          HB_EOF
+          mkdir -p src/main/java/com/hitboxcustomizer/gui
+          cat > src/main/java/com/hitboxcustomizer/gui/HitboxMenuScreen.java <<'HB_EOF'
+          package com.hitboxcustomizer.gui;
+
+          import com.hitboxcustomizer.HitboxRenderer;
+          import com.hitboxcustomizer.config.HitboxConfig;
+          import net.minecraft.client.gui.Click;
+          import net.minecraft.client.gui.DrawContext;
+          import net.minecraft.client.gui.screen.Screen;
+          import net.minecraft.client.gui.widget.TextFieldWidget;
+          import net.minecraft.entity.EntityType;
+          import net.minecraft.registry.Registries;
+          import net.minecraft.text.Text;
+          import net.minecraft.util.Identifier;
+          import net.minecraft.util.math.MathHelper;
+
+          import java.util.ArrayList;
+          import java.util.Comparator;
+          import java.util.List;
+          import java.util.Locale;
+
+          /** Main menu: global options on top, searchable list of every entity type below. */
+          public class HitboxMenuScreen extends Screen {
+              private static final int ROW_H = 24;
+
+              private record Entry(String id, String name, String haystack) {
+              }
+
+              private static List<Entry> cachedEntries;
+
+              private final Screen parent;
+              private final List<UiButton> buttons = new ArrayList<>();
+              private List<Entry> filtered = new ArrayList<>();
+              private TextFieldWidget search;
+              private int firstRow = 0;
+              private int listTop;
+              private int listBottom;
+              private int left;
+              private int panelW;
+
+              public HitboxMenuScreen(Screen parent) {
+                  super(Text.literal("Hitbox Customizer"));
+                  this.parent = parent;
+              }
+
+              private static List<Entry> entries() {
+                  if (cachedEntries == null) {
+                      List<Entry> list = new ArrayList<>();
+                      for (EntityType<?> type : Registries.ENTITY_TYPE) {
+                          Identifier id = Registries.ENTITY_TYPE.getId(type);
+                          String name = type.getName().getString();
+                          list.add(new Entry(id.toString(), name, (name + " " + id).toLowerCase(Locale.ROOT)));
+                      }
+                      list.sort(Comparator.comparing(e -> e.name().toLowerCase(Locale.ROOT)));
+                      cachedEntries = list;
+                  }
+                  return cachedEntries;
+              }
+
+              @Override
+              protected void init() {
+                  HitboxConfig cfg = HitboxConfig.get();
+                  buttons.clear();
+
+                  panelW = Math.min(this.width - 20, 440);
+                  left = (this.width - panelW) / 2;
+                  int gap = 6;
+                  int bw = (panelW - gap * 2) / 3;
+                  int row1 = 30;
+                  int row2 = 52;
+
+                  buttons.add(new UiButton(left, row1, bw, 18,
+                      () -> "Mod: " + (cfg.enabled ? "ON" : "OFF"),
+                      () -> {
+                          cfg.enabled = !cfg.enabled;
+                          HitboxConfig.save();
+                      }));
+                  buttons.add(new UiButton(left + bw + gap, row1, bw, 18,
+                      () -> "Hitboxes now: " + (HitboxRenderer.isDefaultOn() ? "ON" : "OFF"),
+                      () -> HitboxRenderer.quickToggle(this.client)));
+                  buttons.add(new UiButton(left + (bw + gap) * 2, row1, bw, 18,
+                      () -> "Preset colors: " + (cfg.presetColors ? "ON" : "OFF"),
+                      () -> {
+                          cfg.presetColors = !cfg.presetColors;
+                          HitboxConfig.save();
+                      }));
+
+                  buttons.add(new UiButton(left, row2, bw, 18,
+                      () -> "Override all: " + (cfg.globalColorEnabled ? "ON" : "OFF"),
+                      () -> {
+                          cfg.globalColorEnabled = !cfg.globalColorEnabled;
+                          HitboxConfig.save();
+                      }));
+                  buttons.add(new UiButton(left + bw + gap, row2, bw, 18,
+                      () -> "Override color...",
+                      () -> this.client.setScreen(new ColorPickerScreen(this, "Color for all hitboxes", cfg.globalColor, rgb -> {
+                          cfg.globalColor = rgb;
+                          cfg.globalColorEnabled = true;
+                          HitboxConfig.save();
+                      }))).withSwatch(() -> cfg.globalColor));
+                  buttons.add(new UiButton(left + (bw + gap) * 2, row2, bw, 18,
+                      () -> "Eye/look lines: " + (cfg.showEyeLine ? "ON" : "OFF"),
+                      () -> {
+                          boolean next = !cfg.showEyeLine;
+                          cfg.showEyeLine = next;
+                          cfg.showLookVector = next;
+                          HitboxConfig.save();
+                      }));
+
+                  search = new TextFieldWidget(this.textRenderer, left, 76, panelW, 18, Text.literal("Search"));
+                  search.setPlaceholder(Text.literal("Search any entity (name or id)..."));
+                  search.setMaxLength(64);
+                  search.setChangedListener(text -> {
+                      refilter(text);
+                      firstRow = 0;
+                  });
+                  addDrawableChild(search);
+                  setInitialFocus(search);
+
+                  listTop = 100;
+                  listBottom = this.height - 30;
+
+                  buttons.add(new UiButton((this.width - 100) / 2, this.height - 24, 100, 18, () -> "Done", this::close));
+
+                  refilter(search.getText());
+              }
+
+              private void refilter(String query) {
+                  String[] tokens = query.toLowerCase(Locale.ROOT).trim().split("\\s+");
+                  List<Entry> out = new ArrayList<>();
+                  for (Entry e : entries()) {
+                      boolean ok = true;
+                      for (String t : tokens) {
+                          if (!t.isEmpty() && !e.haystack().contains(t)) {
+                              ok = false;
+                              break;
+                          }
+                      }
+                      if (ok) {
+                          out.add(e);
+                      }
+                  }
+                  filtered = out;
+              }
+
+              private int visibleRows() {
+                  return Math.max(1, (listBottom - listTop) / ROW_H);
+              }
+
+              private int maxFirstRow() {
+                  return Math.max(0, filtered.size() - visibleRows());
+              }
+
+              @Override
+              public void render(DrawContext g, int mouseX, int mouseY, float delta) {
+                  HitboxConfig cfg = HitboxConfig.get();
+                  g.fill(0, 0, this.width, this.height, Theme.DIM_BG);
+
+                  g.drawText(this.textRenderer, this.title, left, 12, Theme.TEXT, false);
+                  String hint = "Click an entity to edit it";
+                  g.drawText(this.textRenderer, hint, left + panelW - this.textRenderer.getWidth(hint), 12, Theme.DIM, false);
+
+                  firstRow = MathHelper.clamp(firstRow, 0, maxFirstRow());
+                  int rows = visibleRows();
+
+                  g.fill(left, listTop, left + panelW, listBottom, Theme.PANEL);
+                  g.drawStrokedRectangle(left, listTop, panelW, listBottom - listTop, Theme.BORDER);
+
+                  for (int i = 0; i < rows; i++) {
+                      int index = firstRow + i;
+                      if (index >= filtered.size()) {
+                          break;
+                      }
+                      Entry e = filtered.get(index);
+                      int y = listTop + i * ROW_H;
+                      boolean hovered = mouseX >= left && mouseX < left + panelW - 6 && mouseY >= y && mouseY < y + ROW_H;
+                      if (hovered) {
+                          g.fill(left + 1, y, left + panelW - 1, y + ROW_H, Theme.CARD_HOVER);
+                      } else if (i % 2 == 1) {
+                          g.fill(left + 1, y, left + panelW - 1, y + ROW_H, Theme.CARD);
+                      }
+
+                      int color = cfg.colorFor(e.id());
+                      g.fill(left + 8, y + 5, left + 22, y + 19, 0xFF000000 | color);
+                      g.drawStrokedRectangle(left + 8, y + 5, 14, 14, 0x80FFFFFF);
+                      g.drawText(this.textRenderer, e.name(), left + 30, y + 4, Theme.TEXT, false);
+                      g.drawText(this.textRenderer, e.id(), left + 30, y + 14, Theme.DIM, false);
+
+                      HitboxConfig.Mode mode = cfg.modeFor(e.id());
+                      HitboxConfig.EntitySettings s = cfg.settings(e.id());
+                      String tag = mode == HitboxConfig.Mode.DEFAULT ? "" : mode.label();
+                      if (s != null && s.useCustomColor) {
+                          tag = tag.isEmpty() ? "Custom" : tag + " | Custom";
+                      }
+                      if (!tag.isEmpty()) {
+                          int tagColor = mode == HitboxConfig.Mode.NEVER ? Theme.BAD
+                              : mode == HitboxConfig.Mode.ALWAYS ? Theme.GOOD : Theme.DIM;
+                          g.drawText(this.textRenderer, tag, left + panelW - 14 - this.textRenderer.getWidth(tag), y + 8, tagColor, false);
+                      }
+                  }
+
+                  if (filtered.isEmpty()) {
+                      g.drawText(this.textRenderer, "No entities match your search.", left + 10, listTop + 10, Theme.DIM, false);
+                  }
+
+                  // Scrollbar.
+                  if (filtered.size() > rows) {
+                      int trackH = listBottom - listTop - 4;
+                      int barH = Math.max(16, trackH * rows / filtered.size());
+                      int barY = listTop + 2 + (maxFirstRow() == 0 ? 0 : (trackH - barH) * firstRow / maxFirstRow());
+                      g.fill(left + panelW - 5, barY, left + panelW - 2, barY + barH, Theme.ACCENT);
+                  }
+
+                  String count = filtered.size() + " entities";
+                  g.drawText(this.textRenderer, count, left, this.height - 20, Theme.DIM, false);
+
+                  super.render(g, mouseX, mouseY, delta);
+
+                  for (UiButton b : buttons) {
+                      b.draw(g, this.textRenderer, mouseX, mouseY);
+                  }
+              }
+
+              @Override
+              public boolean mouseClicked(Click click, boolean doubled) {
+                  if (super.mouseClicked(click, doubled)) {
+                      return true;
+                  }
+                  if (click.button() != 0) {
+                      return false;
+                  }
+                  double mx = click.x();
+                  double my = click.y();
+
+                  for (UiButton b : buttons) {
+                      if (b.contains(mx, my)) {
+                          b.click();
+                          return true;
+                      }
+                  }
+
+                  if (mx >= left && mx < left + panelW - 6 && my >= listTop && my < listBottom) {
+                      int row = (int) ((my - listTop) / ROW_H);
+                      int index = firstRow + row;
+                      if (row < visibleRows() && index < filtered.size()) {
+                          Entry e = filtered.get(index);
+                          this.client.setScreen(new EntityEditScreen(this, e.id(), e.name()));
+                          return true;
+                      }
+                  }
+                  return false;
+              }
+
+              @Override
+              public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+                  if (mouseY >= listTop && mouseY < listBottom) {
+                      int step = verticalAmount > 0 ? -1 : 1;
+                      firstRow = MathHelper.clamp(firstRow + step * 2, 0, maxFirstRow());
+                      return true;
+                  }
+                  return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+              }
+
+              @Override
+              public void removed() {
+                  HitboxConfig.save();
+              }
+
+              @Override
+              public void close() {
+                  this.client.setScreen(parent);
+              }
+          }
+          HB_EOF
+          mkdir -p src/main/java/com/hitboxcustomizer/gui
+          cat > src/main/java/com/hitboxcustomizer/gui/ModMenuIntegration.java <<'HB_EOF'
+          package com.hitboxcustomizer.gui;
+
+          import com.terraformersmc.modmenu.api.ConfigScreenFactory;
+          import com.terraformersmc.modmenu.api.ModMenuApi;
+
+          public class ModMenuIntegration implements ModMenuApi {
+              @Override
+              public ConfigScreenFactory<?> getModConfigScreenFactory() {
+                  return HitboxMenuScreen::new;
+              }
+          }
+          HB_EOF
+          mkdir -p src/main/java/com/hitboxcustomizer/gui
+          cat > src/main/java/com/hitboxcustomizer/gui/Theme.java <<'HB_EOF'
+          package com.hitboxcustomizer.gui;
+
+          final class Theme {
+              static final int DIM_BG = 0xD00B0F17;
+              static final int PANEL = 0xFF141A24;
+              static final int CARD = 0xFF1B2330;
+              static final int CARD_HOVER = 0xFF27324A;
+              static final int BORDER = 0xFF2C3A52;
+              static final int ACCENT = 0xFF4ADE9C;
+              static final int TEXT = 0xFFEAF2FB;
+              static final int DIM = 0xFF93A0B4;
+              static final int GOOD = 0xFF4ADE9C;
+              static final int BAD = 0xFFFF6B6B;
+
+              private Theme() {
+              }
+          }
+          HB_EOF
+          mkdir -p src/main/java/com/hitboxcustomizer/gui
+          cat > src/main/java/com/hitboxcustomizer/gui/UiButton.java <<'HB_EOF'
+          package com.hitboxcustomizer.gui;
+
+          import net.minecraft.client.font.TextRenderer;
+          import net.minecraft.client.gui.DrawContext;
+
+          import java.util.function.IntSupplier;
+          import java.util.function.Supplier;
+
+          /** Tiny hand-drawn button so the screens depend on as little vanilla widget API as possible. */
+          final class UiButton {
+              final int x;
+              final int y;
+              final int w;
+              final int h;
+              private final Supplier<String> label;
+              private final Runnable action;
+              private IntSupplier swatch;
+
+              UiButton(int x, int y, int w, int h, Supplier<String> label, Runnable action) {
+                  this.x = x;
+                  this.y = y;
+                  this.w = w;
+                  this.h = h;
+                  this.label = label;
+                  this.action = action;
+              }
+
+              UiButton withSwatch(IntSupplier swatch) {
+                  this.swatch = swatch;
+                  return this;
+              }
+
+              boolean contains(double mx, double my) {
+                  return mx >= x && mx < x + w && my >= y && my < y + h;
+              }
+
+              void click() {
+                  action.run();
+              }
+
+              void draw(DrawContext g, TextRenderer font, int mx, int my) {
+                  boolean hovered = contains(mx, my);
+                  g.fill(x, y, x + w, y + h, hovered ? Theme.CARD_HOVER : Theme.CARD);
+                  g.drawStrokedRectangle(x, y, w, h, hovered ? Theme.ACCENT : Theme.BORDER);
+
+                  String text = label.get();
+                  int textW = font.getWidth(text);
+                  int swatchW = swatch != null ? 14 : 0;
+                  int startX = x + (w - (textW + swatchW)) / 2;
+                  int textY = y + (h - 8) / 2;
+
+                  if (swatch != null) {
+                      int sy = y + (h - 10) / 2;
+                      g.fill(startX, sy, startX + 10, sy + 10, 0xFF000000 | swatch.getAsInt());
+                      g.drawStrokedRectangle(startX, sy, 10, 10, 0x80FFFFFF);
+                      startX += swatchW;
+                  }
+                  g.drawText(font, text, startX, textY, Theme.TEXT, false);
+              }
+          }
+          HB_EOF
+          mkdir -p src/main/java/com/hitboxcustomizer/mixin
+          cat > src/main/java/com/hitboxcustomizer/mixin/DebugRendererMixin.java <<'HB_EOF'
+          package com.hitboxcustomizer.mixin;
+
+          import com.hitboxcustomizer.HitboxRenderer;
+          import net.minecraft.client.render.Frustum;
+          import net.minecraft.client.render.debug.DebugRenderer;
+          import org.spongepowered.asm.mixin.Mixin;
+          import org.spongepowered.asm.mixin.injection.At;
+          import org.spongepowered.asm.mixin.injection.Inject;
+          import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+          @Mixin(DebugRenderer.class)
+          public class DebugRendererMixin {
+
+              // Runs once per frame while debug gizmos are being collected.
+              @Inject(method = "render", at = @At("HEAD"))
+              private void hitboxcustomizer$onRender(Frustum frustum, double cameraX, double cameraY, double cameraZ,
+                                                     float tickProgress, CallbackInfo ci) {
+                  HitboxRenderer.onFrame(frustum, cameraX, cameraY, cameraZ, tickProgress);
+              }
+          }
+          HB_EOF
+          mkdir -p src/main/java/com/hitboxcustomizer/mixin
+          cat > src/main/java/com/hitboxcustomizer/mixin/EntityHitboxDebugRendererMixin.java <<'HB_EOF'
+          package com.hitboxcustomizer.mixin;
+
+          import com.hitboxcustomizer.HitboxRenderer;
+          import com.hitboxcustomizer.config.HitboxConfig;
+          import net.minecraft.client.render.debug.EntityHitboxDebugRenderer;
+          import net.minecraft.entity.Entity;
+          import org.spongepowered.asm.mixin.Mixin;
+          import org.spongepowered.asm.mixin.injection.At;
+          import org.spongepowered.asm.mixin.injection.Inject;
+          import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+          @Mixin(EntityHitboxDebugRenderer.class)
+          public class EntityHitboxDebugRendererMixin {
+
+              // Vanilla only runs this renderer while F3+B hitboxes are on, so it doubles as a state probe.
+              @Inject(method = "render", at = @At("HEAD"))
+              private void hitboxcustomizer$vanillaIsOn(CallbackInfo ci) {
+                  HitboxRenderer.vanillaSeen = true;
+              }
+
+              // Our renderer draws every box, so vanilla's own per-entity drawing is cancelled.
+              @Inject(method = "drawHitbox", at = @At("HEAD"), cancellable = true)
+              private void hitboxcustomizer$cancelVanilla(Entity entity, float tickProgress, boolean inLocalServer,
+                                                          CallbackInfo ci) {
+                  if (HitboxConfig.get().enabled) {
+                      ci.cancel();
+                  }
+              }
+          }
+          HB_EOF
+
+      - name: Build jar
+        working-directory: mod
+        run: gradle build --no-daemon
+
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: hitbox-customizer
+          path: mod/build/libs/*.jar
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: mod/build/libs/*.jar
