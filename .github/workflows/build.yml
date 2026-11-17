@@ -283,8 +283,91 @@ jobs:
                       "tnt_minecart", "spawner_minecart", "command_block_minecart");
                   put(0xFF66CC, "end_crystal");
                   put(0xFFFF66, "lightning_bolt");
-                  put(0x66BB6A, "ender_pearl", "snowball", "egg");
+                  put(0x29A39A, "ender_pearl");
+                  put(0x66BB6A, "snowball", "egg");
                   put(0xFFB74D, "item_frame", "glow_item_frame", "painting");
+              }
+
+              private static final Map<String, int[]> PALETTES = new HashMap<>();
+
+              private static void pal(String path, int... colors) {
+                  PALETTES.put(path, colors);
+              }
+
+              static {
+                  // Real colors taken from each entity's look.
+                  pal("ender_pearl", 0x0B3D3A, 0x1A6B66, 0x29A39A, 0x5FD3C6, 0xB7F0E6, 0x2A6F9E);
+                  pal("ender_eye", 0x0B3D3A, 0x1A6B66, 0x29A39A, 0x5FD3C6, 0xF0E68C, 0xB7F0E6);
+                  pal("creeper", 0x5FBF4A, 0x2E8B2E, 0x0DA70B, 0x8FD96A, 0x1B4D1B, 0x222222);
+                  pal("enderman", 0x2B2B2B, 0x4A4A4A, 0x7B2FBE, 0xCC00FA, 0xE040FB, 0x111111);
+                  pal("endermite", 0x2B2B2B, 0x5A2F7A, 0x7B3FA0, 0xCC00FA, 0x8A6FA8);
+                  pal("zombie", 0x5B8731, 0x2E8B57, 0x00AAAA, 0x3C4BA8, 0x2A2F7A, 0x3A5A24);
+                  pal("husk", 0xB89F6A, 0x8F7A4E, 0xD9C690, 0x6B5A3A, 0x00AAAA);
+                  pal("drowned", 0x3AA7A0, 0x2A7F7A, 0x7FD6CF, 0x1E4F5A, 0x8FBF8F);
+                  pal("skeleton", 0xE8E8E8, 0xC8C8C8, 0x9A9A9A, 0x6A6A6A, 0xFFFFFF);
+                  pal("stray", 0xC8D8E0, 0x9AD7E8, 0x6FA8C0, 0x3E6F8A, 0xFFFFFF);
+                  pal("wither_skeleton", 0x6E6E78, 0x4A4A52, 0x2B2B2B, 0x9A9AA5, 0xCCCCCC);
+                  pal("wither", 0x2B2B2B, 0x6E6E78, 0x9A9AA5, 0x7A7A9A, 0x4A5A7A);
+                  pal("blaze", 0xFFD42A, 0xFFA500, 0xE8590C, 0xFFF3A0, 0x8A5A1A);
+                  pal("ghast", 0xF5F5F5, 0xD9D9D9, 0xB0B0B0, 0xE57373, 0x808080);
+                  pal("slime", 0x7EBF6E, 0x4C8F3F, 0xA8E39A, 0x2E5E2A, 0xC8F2BC);
+                  pal("magma_cube", 0xFF9A3C, 0xD9531E, 0x3B1E12, 0xFFD27F, 0x7A2A10);
+                  pal("spider", 0x3B2F2F, 0x5A4A4A, 0x7A2E2E, 0xC62828, 0x1E1616);
+                  pal("cave_spider", 0x0C424E, 0x1E8FB0, 0x3FB8D9, 0xC62828, 0x082A33);
+                  pal("iron_golem", 0xC9C9C9, 0x8E8E8E, 0x6E9A4B, 0xB5651D, 0xE0E0E0);
+                  pal("snow_golem", 0xF0F8FF, 0xCFE3F0, 0xE08A1E, 0x3A2A1A, 0xFF8C00);
+                  pal("pig", 0xF4A6B4, 0xE58AA0, 0xFFC8D4, 0xB06A7A, 0x8B5A5A);
+                  pal("cow", 0x3B2A20, 0x6B4A3A, 0xF0F0F0, 0xC8B79A, 0xA08A70);
+                  pal("mooshroom", 0xD32F2F, 0xA52222, 0xF0F0F0, 0xC8B79A, 0xE57373);
+                  pal("sheep", 0xE8E8E8, 0xC9B79A, 0x9E8F7A, 0xF5F5F5, 0x6A5A4A);
+                  pal("chicken", 0xF5F0DC, 0xE53935, 0xFFB300, 0xC9C0A0, 0xFFFFFF);
+                  pal("villager", 0xD2A679, 0xB07A4B, 0x6B4A2E, 0x4E342E, 0x8BC34A);
+                  pal("wolf", 0xCFCFCF, 0xA8A8A8, 0xE8E8E8, 0x6A6A6A, 0xD32F2F);
+                  pal("bee", 0xF2C230, 0x2B2B2B, 0xBFE8F5, 0xE0A010, 0xFFF0A0);
+                  pal("player", 0x3FA7D6, 0x00AAAA, 0x3C4BA8, 0xC69C6D, 0x6B4A2E, 0x7A5A3A);
+                  pal("phantom", 0x3F4FA8, 0x6C7BE0, 0x8BE08B, 0x2A2F6A, 0xC9B8E8);
+                  pal("guardian", 0x4FB3A5, 0x2E7F74, 0x8FE0D5, 0xFF8A3C, 0xC9A66B);
+                  pal("elder_guardian", 0xB59A8C, 0x8A7466, 0xD9C6BA, 0xFF8A3C, 0x4FB3A5);
+                  pal("shulker", 0xC99BD6, 0x8E5BA8, 0xEBD9F0, 0x6A3F80, 0xF2E6F7);
+                  pal("warden", 0x0B3C47, 0x1A8C9E, 0x3FE0E0, 0xA7F0F0, 0x07262C);
+                  pal("ender_dragon", 0x2B2B2B, 0x555555, 0xB347FF, 0xE040FB, 0x7B2FBE);
+                  pal("end_crystal", 0xFF66CC, 0xB347FF, 0xE0E0E0, 0x7B2FBE, 0xFFB3E6);
+                  pal("experience_orb", 0x7CFC00, 0xC8FF3C, 0x3FA500, 0xE8FF8A, 0x2E7D00);
+                  pal("tnt", 0xE53935, 0xFFFFFF, 0x333333, 0xB71C1C, 0xE0E0E0);
+                  pal("piglin", 0xE0A87A, 0xF2C230, 0x8B4A3A, 0xC98E5E, 0xFFE0B0);
+                  pal("zombified_piglin", 0xE8A090, 0xF2C230, 0x5B8731, 0x8B4A3A, 0xC08070);
+                  pal("strider", 0xD13B3B, 0x8E1F1F, 0x4A3A9A, 0xFF7A5A, 0x5A1010);
+                  pal("fox", 0xE87A2F, 0xF5F0E8, 0x3A2A20, 0xC8601A, 0xFFB070);
+                  pal("panda", 0xF0F0F0, 0x222222, 0xC8C8C8, 0x6A6A6A, 0x8BC34A);
+                  pal("axolotl", 0xF4A6C8, 0xE58AB0, 0xFFCFE0, 0x8B5A7A, 0xB0804A);
+                  pal("allay", 0x4FC3F7, 0x8FE0FF, 0x1E88C8, 0xC8F0FF, 0x0D5A8A);
+                  pal("squid", 0x2F6EA5, 0x1E4F7A, 0x5A9AD0, 0x14344F, 0x8FBFE8);
+                  pal("glow_squid", 0x39D6C4, 0x1E8F85, 0x8FFFF0, 0x0E4F4A, 0x2F6EA5);
+                  pal("parrot", 0xE53935, 0x1E88E5, 0x43A047, 0xFDD835, 0x9E9E9E);
+                  pal("sniffer", 0xB0413E, 0x7A2A2A, 0x5A8F5A, 0xE0D0B0, 0x3A5A3A);
+              }
+
+              /** Colors that actually appear on the entity, used as recommended swatches. */
+              public static int[] palette(String id) {
+                  int colon = id.indexOf(':');
+                  String namespace = colon >= 0 ? id.substring(0, colon) : "minecraft";
+                  String path = colon >= 0 ? id.substring(colon + 1) : id;
+                  if (namespace.equals("minecraft")) {
+                      int[] known = PALETTES.get(path);
+                      if (known != null) {
+                          return known;
+                      }
+                  }
+                  int base = forId(id);
+                  return new int[]{mix(base, 0x000000, 0.55f), mix(base, 0x000000, 0.3f), base,
+                      mix(base, 0xFFFFFF, 0.3f), mix(base, 0xFFFFFF, 0.6f)};
+              }
+
+              private static int mix(int a, int b, float t) {
+                  int r = Math.round(((a >> 16) & 0xFF) * (1 - t) + ((b >> 16) & 0xFF) * t);
+                  int g = Math.round(((a >> 8) & 0xFF) * (1 - t) + ((b >> 8) & 0xFF) * t);
+                  int bl = Math.round((a & 0xFF) * (1 - t) + (b & 0xFF) * t);
+                  return (r << 16) | (g << 8) | bl;
               }
 
               private EntityColors() {
@@ -484,7 +567,6 @@ jobs:
 
                   boolean defaultOn = isDefaultOn();
                   boolean firstPerson = mc.options.getPerspective().isFirstPerson();
-                  double maxSq = (double) cfg.maxDistance * cfg.maxDistance;
 
                   for (Entity entity : mc.world.getEntities()) {
                       if (entity == mc.player && firstPerson) {
@@ -500,9 +582,6 @@ jobs:
                       if (!show) {
                           continue;
                       }
-                      if (entity.squaredDistanceTo(camX, camY, camZ) > maxSq) {
-                          continue;
-                      }
 
                       Vec3d lerped = entity.getLerpedPos(tickProgress);
                       Box box = entity.getBoundingBox().offset(
@@ -512,11 +591,13 @@ jobs:
                       }
 
                       int argb = 0xFF000000 | cfg.colorFor(id);
-                      GizmoDrawing.box(box, DrawStyle.stroked(argb));
+                      float width = cfg.thicknessFor(id);
+                      DrawStyle style = width > 0f ? DrawStyle.stroked(argb, width) : DrawStyle.stroked(argb);
+                      GizmoDrawing.box(box, style);
 
                       if (entity instanceof EnderDragonEntity dragon) {
                           for (EnderDragonPart part : dragon.getBodyParts()) {
-                              GizmoDrawing.box(part.getBoundingBox(), DrawStyle.stroked(argb));
+                              GizmoDrawing.box(part.getBoundingBox(), style);
                           }
                       }
 
@@ -524,12 +605,16 @@ jobs:
                           double eyeY = lerped.y + entity.getStandingEyeHeight();
                           if (cfg.showEyeLine) {
                               Box eye = new Box(box.minX, eyeY - 0.01, box.minZ, box.maxX, eyeY + 0.01, box.maxZ);
-                              GizmoDrawing.box(eye, DrawStyle.stroked(0xFFFF0000));
+                              GizmoDrawing.box(eye, width > 0f ? DrawStyle.stroked(0xFFFF0000, width) : DrawStyle.stroked(0xFFFF0000));
                           }
                           if (cfg.showLookVector) {
                               Vec3d start = new Vec3d(lerped.x, eyeY, lerped.z);
                               Vec3d end = start.add(entity.getRotationVec(tickProgress).multiply(2.0));
-                              GizmoDrawing.line(start, end, 0xFF0000FF);
+                              if (width > 0f) {
+                                  GizmoDrawing.line(start, end, 0xFF0000FF, width);
+                              } else {
+                                  GizmoDrawing.line(start, end, 0xFF0000FF);
+                              }
                           }
                       }
                   }
@@ -578,9 +663,11 @@ jobs:
                   public boolean useCustomColor = false;
                   public int color = 0xFFFFFF;
                   public Mode mode = Mode.DEFAULT;
+                  // Line thickness. 0 means vanilla's default.
+                  public float thickness = 0f;
 
                   public boolean isDefault() {
-                      return !useCustomColor && mode == Mode.DEFAULT;
+                      return !useCustomColor && mode == Mode.DEFAULT && thickness <= 0f;
                   }
               }
 
@@ -594,8 +681,6 @@ jobs:
               // Vanilla extras: red eye-height line and blue look vector.
               public boolean showEyeLine = true;
               public boolean showLookVector = true;
-              // Hitboxes farther than this (in blocks) are skipped.
-              public int maxDistance = 64;
               // Per entity type settings, keyed by registry id such as "minecraft:creeper".
               public Map<String, EntitySettings> entities = new HashMap<>();
 
@@ -619,6 +704,11 @@ jobs:
               public Mode modeFor(String id) {
                   EntitySettings s = entities.get(id);
                   return s == null || s.mode == null ? Mode.DEFAULT : s.mode;
+              }
+
+              public float thicknessFor(String id) {
+                  EntitySettings s = entities.get(id);
+                  return s == null ? 0f : Math.max(0f, s.thickness);
               }
 
               /** Priority: global override, then the entity's own color, then preset, then vanilla white. */
@@ -697,7 +787,6 @@ jobs:
                           s.mode = Mode.DEFAULT;
                       }
                   }
-                  maxDistance = Math.max(8, Math.min(512, maxDistance));
               }
           }
           HB_EOF
@@ -721,13 +810,14 @@ jobs:
               private static final int SV = 120;
               private static final int PW = 262;
               private static final int PH = 214;
-              private static final int[] PRESETS = {
+              private static final int[] DEFAULT_PRESETS = {
                   0xFFFFFF, 0xFF4D4D, 0xFFA94D, 0xFFE14D, 0x4DFF6E,
                   0x4DFFE1, 0x4D9EFF, 0x9B4DFF, 0xFF4DD8, 0x000000
               };
 
               private final Screen parent;
               private final IntConsumer onApply;
+              private final int[] presets;
               private final int originalRgb;
               private float hue;
               private float sat;
@@ -740,7 +830,14 @@ jobs:
               private UiButton cancel;
 
               public ColorPickerScreen(Screen parent, String title, int startRgb, IntConsumer onApply) {
+                  this(parent, title, startRgb, null, onApply);
+              }
+
+              /** presets: recommended swatches to show under the picker, or null for generic ones. */
+              public ColorPickerScreen(Screen parent, String title, int startRgb, int[] presets, IntConsumer onApply) {
                   super(Text.literal(title));
+                  this.presets = presets == null || presets.length == 0 ? DEFAULT_PRESETS
+                      : java.util.Arrays.copyOf(presets, Math.min(presets.length, 10));
                   this.parent = parent;
                   this.onApply = onApply;
                   this.originalRgb = startRgb & 0xFFFFFF;
@@ -877,10 +974,10 @@ jobs:
 
                   // Quick presets.
                   int pyy = presetsY();
-                  for (int i = 0; i < PRESETS.length; i++) {
+                  for (int i = 0; i < presets.length; i++) {
                       int x = px + 14 + i * 16;
                       boolean hov = mouseX >= x && mouseX < x + 12 && mouseY >= pyy && mouseY < pyy + 12;
-                      g.fill(x, pyy, x + 12, pyy + 12, 0xFF000000 | PRESETS[i]);
+                      g.fill(x, pyy, x + 12, pyy + 12, 0xFF000000 | presets[i]);
                       g.drawStrokedRectangle(x, pyy, 12, 12, hov ? 0xFFFFFFFF : 0x60FFFFFF);
                   }
 
@@ -921,10 +1018,10 @@ jobs:
                       updateHue(my);
                       return true;
                   }
-                  for (int i = 0; i < PRESETS.length; i++) {
+                  for (int i = 0; i < presets.length; i++) {
                       int x = px() + 14 + i * 16;
                       if (mx >= x && mx < x + 12 && my >= presetsY() && my < presetsY() + 12) {
-                          float[] hsv = EntityColors.rgbToHsv(PRESETS[i]);
+                          float[] hsv = EntityColors.rgbToHsv(presets[i]);
                           hue = hsv[0];
                           sat = hsv[1];
                           val = hsv[2];
@@ -975,6 +1072,7 @@ jobs:
           cat > src/main/java/com/hitboxcustomizer/gui/EntityEditScreen.java <<'HB_EOF'
           package com.hitboxcustomizer.gui;
 
+          import com.hitboxcustomizer.EntityColors;
           import com.hitboxcustomizer.config.HitboxConfig;
           import net.minecraft.client.gui.Click;
           import net.minecraft.client.gui.DrawContext;
@@ -987,7 +1085,7 @@ jobs:
           /** Color and visibility settings for one entity type. */
           public class EntityEditScreen extends Screen {
               private static final int PW = 300;
-              private static final int PH = 218;
+              private static final int PH = 254;
 
               private final Screen parent;
               private final String entityId;
@@ -1015,7 +1113,7 @@ jobs:
                   HitboxConfig cfg = HitboxConfig.get();
                   int x = px() + 14;
                   int w = PW - 28;
-                  int y = py() + 84;
+                  int y = py() + 92;
 
                   buttons.add(new UiButton(x, y, w, 18,
                       () -> "Use custom color: " + (isCustom() ? "ON" : "OFF"),
@@ -1029,7 +1127,7 @@ jobs:
                       () -> "Choose color...",
                       () -> {
                           HitboxConfig.EntitySettings s = cfg.edit(entityId);
-                          this.client.setScreen(new ColorPickerScreen(this, "Hitbox color: " + entityName, s.color, rgb -> {
+                          this.client.setScreen(new ColorPickerScreen(this, "Hitbox color: " + entityName, s.color, EntityColors.palette(entityId), rgb -> {
                               HitboxConfig.EntitySettings edited = cfg.edit(entityId);
                               edited.color = rgb;
                               edited.useCustomColor = true;
@@ -1048,16 +1146,46 @@ jobs:
                           save();
                       }));
 
-                  buttons.add(new UiButton(x, y + 66, (w - 6) / 2, 18,
+                  buttons.add(new UiButton(x, y + 66, 24, 18, () -> "-", () -> {
+                      HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                      s.thickness = s.thickness <= 0.5f ? 0f : s.thickness - 0.5f;
+                      save();
+                  }));
+                  buttons.add(new UiButton(x + 28, y + 66, w - 56, 18,
+                      () -> "Thickness: " + thicknessLabel(), () -> {
+                          HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                          s.thickness = 0f;
+                          save();
+                      }));
+                  buttons.add(new UiButton(x + w - 24, y + 66, 24, 18, () -> "+", () -> {
+                      HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                      s.thickness = s.thickness <= 0f ? 1.0f : Math.min(10f, s.thickness + 0.5f);
+                      save();
+                  }));
+
+                  buttons.add(new UiButton(x, y + 88, (w - 6) / 2, 18,
                       () -> "Reset this entity",
                       () -> {
                           cfg.entities.remove(entityId);
                           HitboxConfig.save();
                       }));
 
-                  buttons.add(new UiButton(x + (w - 6) / 2 + 6, y + 66, (w - 6) / 2, 18,
+                  buttons.add(new UiButton(x + (w - 6) / 2 + 6, y + 88, (w - 6) / 2, 18,
                       () -> "Back",
                       this::close));
+              }
+
+              private int swatchX(int i) {
+                  return px() + 64 + i * 18;
+              }
+
+              private int swatchY() {
+                  return py() + 75;
+              }
+
+              private String thicknessLabel() {
+                  float t = HitboxConfig.get().thicknessFor(entityId);
+                  return t <= 0f ? "Default (click to reset)" : String.format("%.1f (click to reset)", t);
               }
 
               private boolean isCustom() {
@@ -1088,11 +1216,21 @@ jobs:
                   g.drawText(this.textRenderer, String.format("Current color: #%06X", color), px + 64, py + 46, Theme.TEXT, false);
                   g.drawText(this.textRenderer, "Source: " + cfg.colorSource(entityId), px + 64, py + 58, Theme.DIM, false);
 
+                  g.drawText(this.textRenderer, "Recommended colors (click to use):", px + 64, py + 64, Theme.DIM, false);
+                  int[] palette = EntityColors.palette(entityId);
+                  for (int i = 0; i < palette.length && i < 10; i++) {
+                      int sx = swatchX(i);
+                      int sy = swatchY();
+                      boolean hov = mouseX >= sx && mouseX < sx + 14 && mouseY >= sy && mouseY < sy + 14;
+                      g.fill(sx, sy, sx + 14, sy + 14, 0xFF000000 | palette[i]);
+                      g.drawStrokedRectangle(sx, sy, 14, 14, hov ? 0xFFFFFFFF : 0x60FFFFFF);
+                  }
+
                   for (UiButton b : buttons) {
                       b.draw(g, this.textRenderer, mouseX, mouseY);
                   }
 
-                  int ty = py + 84 + 66 + 26;
+                  int ty = py + 92 + 88 + 26;
                   g.drawText(this.textRenderer, "Default: shown while hitboxes are on (F3+B or hotkey).", px + 14, ty, Theme.DIM, false);
                   g.drawText(this.textRenderer, "Always on: shown even when hitboxes are off.", px + 14, ty + 11, Theme.DIM, false);
                   g.drawText(this.textRenderer, "Never on: never shown.", px + 14, ty + 22, Theme.DIM, false);
@@ -1103,6 +1241,17 @@ jobs:
               @Override
               public boolean mouseClicked(Click click, boolean doubled) {
                   if (click.button() == 0) {
+                      int[] palette = EntityColors.palette(entityId);
+                      for (int i = 0; i < palette.length && i < 10; i++) {
+                          if (click.x() >= swatchX(i) && click.x() < swatchX(i) + 14
+                              && click.y() >= swatchY() && click.y() < swatchY() + 14) {
+                              HitboxConfig.EntitySettings s = HitboxConfig.get().edit(entityId);
+                              s.color = palette[i];
+                              s.useCustomColor = true;
+                              save();
+                              return true;
+                          }
+                      }
                       for (UiButton b : buttons) {
                           if (b.contains(click.x(), click.y())) {
                               b.click();
