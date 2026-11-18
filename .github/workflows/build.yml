@@ -110,9 +110,13 @@ jobs:
             "id": "hitboxcustomizer",
             "version": "${version}",
             "name": "Hitbox Customizer",
-            "description": "Customize the color and visibility of every entity's hitbox. Press H to open the menu.",
+            "description": "Customize the color, thickness and visibility of every entity's hitbox. Press H to open the menu. Website: https://modrinth.com/project/Customized-Hitboxes",
+            "contact": {
+              "homepage": "https://modrinth.com/project/Customized-Hitboxes"
+            },
             "authors": ["You"],
             "license": "MIT",
+            "icon": "assets/hitboxcustomizer/icon.png",
             "environment": "client",
             "entrypoints": {
               "client": ["com.hitboxcustomizer.HitboxCustomizerClient"],
@@ -127,6 +131,13 @@ jobs:
             },
             "suggests": {
               "modmenu": "*"
+            },
+            "custom": {
+              "modmenu": {
+                "links": {
+                  "Modrinth": "https://modrinth.com/project/Customized-Hitboxes"
+                }
+              }
             }
           }
           HB_EOF
@@ -579,7 +590,7 @@ jobs:
                           case NEVER -> false;
                           case DEFAULT -> defaultOn;
                       };
-                      if (!show) {
+                      if (!show || !cfg.passesStateFilter(id, entity)) {
                           continue;
                       }
 
@@ -668,12 +679,16 @@ jobs:
                   // Line thickness. 0 means vanilla's default.
                   public float thickness = 0f;
                   // Per-entity colors for the targeted and on-hit states. null means use the global color.
+                  // Player only: show the hitbox only while gliding with an elytra and/or swimming.
+                  public boolean onlyElytra = false;
+                  public boolean onlySwimming = false;
                   public Integer targetColor = null;
                   public Integer hitColor = null;
 
                   public boolean isDefault() {
                       return !useCustomColor && mode == Mode.DEFAULT && thickness <= 0f
-                          && targetColor == null && hitColor == null;
+                          && targetColor == null && hitColor == null
+                          && !onlyElytra && !onlySwimming;
                   }
               }
 
@@ -764,6 +779,18 @@ jobs:
               public int effectiveHitColor(String id) {
                   EntitySettings s = entities.get(id);
                   return (s != null && s.hitColor != null ? s.hitColor : hitColor) & 0xFFFFFF;
+              }
+
+              /** False when a player-only elytra/swimming filter hides this entity right now. */
+              public boolean passesStateFilter(String id, net.minecraft.entity.Entity entity) {
+                  EntitySettings s = entities.get(id);
+                  if (s == null || (!s.onlyElytra && !s.onlySwimming)) {
+                      return true;
+                  }
+                  if (!(entity instanceof net.minecraft.entity.LivingEntity living)) {
+                      return true;
+                  }
+                  return (s.onlyElytra && living.isGliding()) || (s.onlySwimming && living.isSwimming());
               }
 
               public float thicknessFor(String id) {
@@ -1145,7 +1172,7 @@ jobs:
           /** Color and visibility settings for one entity type. */
           public class EntityEditScreen extends Screen {
               private static final int PW = 320;
-              private static final int PH = 254;
+              private static final int BASE_PH = 254;
 
               private final Screen parent;
               private final String entityId;
@@ -1163,8 +1190,16 @@ jobs:
                   return (this.width - PW) / 2;
               }
 
+              private boolean isPlayer() {
+                  return entityId.equals("minecraft:player");
+              }
+
+              private int ph() {
+                  return BASE_PH + (isPlayer() ? 32 : 0);
+              }
+
               private int py() {
-                  return (this.height - PH) / 2;
+                  return (this.height - ph()) / 2;
               }
 
               @Override
@@ -1253,14 +1288,35 @@ jobs:
                       }
                   }));
 
-                  buttons.add(new UiButton(x, y + 110, (w - 6) / 2, 18,
+                  int bottomY = y + 110;
+                  if (isPlayer()) {
+                      int halfW = (w - 6) / 2;
+                      buttons.add(new UiButton(x, y + 110, halfW, 18, () -> "Elytra only", () -> {
+                          HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                          s.onlyElytra = !s.onlyElytra;
+                          save();
+                      }).withCheckbox(() -> {
+                          HitboxConfig.EntitySettings s = cfg.settings(entityId);
+                          return s != null && s.onlyElytra;
+                      }));
+                      buttons.add(new UiButton(x + halfW + 6, y + 110, halfW, 18, () -> "Swimming only", () -> {
+                          HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                          s.onlySwimming = !s.onlySwimming;
+                          save();
+                      }).withCheckbox(() -> {
+                          HitboxConfig.EntitySettings s = cfg.settings(entityId);
+                          return s != null && s.onlySwimming;
+                      }));
+                      bottomY = y + 132;
+                  }
+                  buttons.add(new UiButton(x, bottomY, (w - 6) / 2, 18,
                       () -> "Reset this entity",
                       () -> {
                           cfg.entities.remove(entityId);
                           HitboxConfig.save();
                       }));
 
-                  buttons.add(new UiButton(x + (w - 6) / 2 + 6, y + 110, (w - 6) / 2, 18,
+                  buttons.add(new UiButton(x + (w - 6) / 2 + 6, bottomY, (w - 6) / 2, 18,
                       () -> "Back",
                       this::close));
               }
@@ -1304,8 +1360,8 @@ jobs:
 
                   int px = px();
                   int py = py();
-                  g.fill(px, py, px + PW, py + PH, Theme.PANEL);
-                  g.drawStrokedRectangle(px, py, PW, PH, Theme.BORDER);
+                  g.fill(px, py, px + PW, py + ph(), Theme.PANEL);
+                  g.drawStrokedRectangle(px, py, PW, ph(), Theme.BORDER);
 
                   g.drawText(this.textRenderer, entityName, px + 14, py + 10, Theme.TEXT, false);
                   g.drawText(this.textRenderer, entityId, px + 14, py + 22, Theme.DIM, false);
@@ -1330,9 +1386,12 @@ jobs:
                       b.draw(g, this.textRenderer, mouseX, mouseY);
                   }
 
-                  int ty = py + 92 + 110 + 24;
+                  int ty = py + 92 + 110 + 24 + (isPlayer() ? 22 : 0);
                   g.drawText(this.textRenderer, "Default: follows F3+B or the hotkey. Always on: forced on.", px + 14, ty, Theme.DIM, false);
                   g.drawText(this.textRenderer, "Never on: hidden. Target/On hit: x clears back to global.", px + 14, ty + 11, Theme.DIM, false);
+                  if (isPlayer()) {
+                      g.drawText(this.textRenderer, "Elytra/Swimming only: player box shows only during checked actions.", px + 14, ty + 22, Theme.DIM, false);
+                  }
 
                   super.render(g, mouseX, mouseY, delta);
               }
@@ -1381,6 +1440,7 @@ jobs:
           import com.hitboxcustomizer.config.HitboxConfig;
           import net.minecraft.client.gui.Click;
           import net.minecraft.client.gui.DrawContext;
+          import net.minecraft.client.gui.screen.ConfirmLinkScreen;
           import net.minecraft.client.gui.screen.Screen;
           import net.minecraft.client.gui.widget.TextFieldWidget;
           import net.minecraft.entity.EntityType;
@@ -1512,6 +1572,9 @@ jobs:
                           HitboxConfig.save();
                       }))).withSwatch(() -> cfg.hitColor));
 
+                  buttons.add(new UiButton(left + panelW - 90, 6, 90, 16, () -> "Modrinth page",
+                      () -> ConfirmLinkScreen.open(this, "https://modrinth.com/project/Customized-Hitboxes")));
+
                   search = new TextFieldWidget(this.textRenderer, left, 98, panelW, 18, Text.literal("Search"));
                   search.setPlaceholder(Text.literal("Search any entity (name or id)..."));
                   search.setMaxLength(64);
@@ -1573,8 +1636,6 @@ jobs:
                   g.fill(0, 0, this.width, this.height, Theme.DIM_BG);
 
                   g.drawText(this.textRenderer, this.title, left, 12, Theme.TEXT, false);
-                  String hint = "Click an entity to edit it";
-                  g.drawText(this.textRenderer, hint, left + panelW - this.textRenderer.getWidth(hint), 12, Theme.DIM, false);
 
                   firstRow = MathHelper.clamp(firstRow, 0, maxFirstRow());
                   int rows = visibleRows();
@@ -1729,6 +1790,7 @@ jobs:
           import net.minecraft.client.font.TextRenderer;
           import net.minecraft.client.gui.DrawContext;
 
+          import java.util.function.BooleanSupplier;
           import java.util.function.IntSupplier;
           import java.util.function.Supplier;
 
@@ -1741,6 +1803,7 @@ jobs:
               private final Supplier<String> label;
               private final Runnable action;
               private IntSupplier swatch;
+              private BooleanSupplier checkbox;
 
               UiButton(int x, int y, int w, int h, Supplier<String> label, Runnable action) {
                   this.x = x;
@@ -1753,6 +1816,11 @@ jobs:
 
               UiButton withSwatch(IntSupplier swatch) {
                   this.swatch = swatch;
+                  return this;
+              }
+
+              UiButton withCheckbox(BooleanSupplier checked) {
+                  this.checkbox = checked;
                   return this;
               }
 
@@ -1771,7 +1839,7 @@ jobs:
 
                   String text = label.get();
                   int textW = font.getWidth(text);
-                  int swatchW = swatch != null ? 14 : 0;
+                  int swatchW = swatch != null || checkbox != null ? 14 : 0;
                   int startX = x + (w - (textW + swatchW)) / 2;
                   int textY = y + (h - 8) / 2;
 
@@ -1779,6 +1847,16 @@ jobs:
                       int sy = y + (h - 10) / 2;
                       g.fill(startX, sy, startX + 10, sy + 10, 0xFF000000 | swatch.getAsInt());
                       g.drawStrokedRectangle(startX, sy, 10, 10, 0x80FFFFFF);
+                      startX += swatchW;
+                  }
+                  if (checkbox != null) {
+                      int cy = y + (h - 10) / 2;
+                      boolean on = checkbox.getAsBoolean();
+                      g.fill(startX, cy, startX + 10, cy + 10, 0xFF0B0F17);
+                      g.drawStrokedRectangle(startX, cy, 10, 10, on ? Theme.ACCENT : Theme.DIM);
+                      if (on) {
+                          g.fill(startX + 2, cy + 2, startX + 8, cy + 8, Theme.ACCENT);
+                      }
                       startX += swatchW;
                   }
                   g.drawText(font, text, startX, textY, Theme.TEXT, false);
@@ -1839,6 +1917,42 @@ jobs:
                   }
               }
           }
+          HB_EOF
+          base64 -d > src/main/resources/assets/hitboxcustomizer/icon.png <<'HB_EOF'
+          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
           HB_EOF
 
       - name: Build jar
