@@ -590,7 +590,9 @@ jobs:
                           continue;
                       }
 
-                      int argb = 0xFF000000 | cfg.colorFor(id);
+                      boolean hit = entity instanceof LivingEntity living && living.hurtTime > 0;
+                      boolean targeted = entity == mc.targetedEntity;
+                      int argb = 0xFF000000 | cfg.finalColor(id, hit, targeted);
                       float width = cfg.thicknessFor(id);
                       DrawStyle style = width > 0f ? DrawStyle.stroked(argb, width) : DrawStyle.stroked(argb);
                       GizmoDrawing.box(box, style);
@@ -665,9 +667,13 @@ jobs:
                   public Mode mode = Mode.DEFAULT;
                   // Line thickness. 0 means vanilla's default.
                   public float thickness = 0f;
+                  // Per-entity colors for the targeted and on-hit states. null means use the global color.
+                  public Integer targetColor = null;
+                  public Integer hitColor = null;
 
                   public boolean isDefault() {
-                      return !useCustomColor && mode == Mode.DEFAULT && thickness <= 0f;
+                      return !useCustomColor && mode == Mode.DEFAULT && thickness <= 0f
+                          && targetColor == null && hitColor == null;
                   }
               }
 
@@ -679,6 +685,12 @@ jobs:
               public boolean globalColorEnabled = false;
               public int globalColor = 0xFFFFFF;
               // Vanilla extras: red eye-height line and blue look vector.
+              // Color while the crosshair is on the entity. Applies to every entity.
+              public boolean targetColorEnabled = false;
+              public int targetColor = 0xFFFF00;
+              // Color while the entity is flashing red from being hit. Applies to every entity.
+              public boolean hitColorEnabled = false;
+              public int hitColor = 0xFF0000;
               public boolean showEyeLine = true;
               public boolean showLookVector = true;
               // Per entity type settings, keyed by registry id such as "minecraft:creeper".
@@ -693,6 +705,10 @@ jobs:
                   presetColors = defaults.presetColors;
                   globalColorEnabled = defaults.globalColorEnabled;
                   globalColor = defaults.globalColor;
+                  targetColorEnabled = defaults.targetColorEnabled;
+                  targetColor = defaults.targetColor;
+                  hitColorEnabled = defaults.hitColorEnabled;
+                  hitColor = defaults.hitColor;
                   showEyeLine = defaults.showEyeLine;
                   showLookVector = defaults.showLookVector;
                   entities = new HashMap<>();
@@ -716,6 +732,38 @@ jobs:
               public Mode modeFor(String id) {
                   EntitySettings s = entities.get(id);
                   return s == null || s.mode == null ? Mode.DEFAULT : s.mode;
+              }
+
+              /** Hit color beats targeted color, which beats the normal color. */
+              public int finalColor(String id, boolean hit, boolean targeted) {
+                  EntitySettings s = entities.get(id);
+                  if (hit) {
+                      if (s != null && s.hitColor != null) {
+                          return s.hitColor & 0xFFFFFF;
+                      }
+                      if (hitColorEnabled) {
+                          return hitColor & 0xFFFFFF;
+                      }
+                  }
+                  if (targeted) {
+                      if (s != null && s.targetColor != null) {
+                          return s.targetColor & 0xFFFFFF;
+                      }
+                      if (targetColorEnabled) {
+                          return targetColor & 0xFFFFFF;
+                      }
+                  }
+                  return colorFor(id);
+              }
+
+              public int effectiveTargetColor(String id) {
+                  EntitySettings s = entities.get(id);
+                  return (s != null && s.targetColor != null ? s.targetColor : targetColor) & 0xFFFFFF;
+              }
+
+              public int effectiveHitColor(String id) {
+                  EntitySettings s = entities.get(id);
+                  return (s != null && s.hitColor != null ? s.hitColor : hitColor) & 0xFFFFFF;
               }
 
               public float thicknessFor(String id) {
@@ -1096,7 +1144,7 @@ jobs:
 
           /** Color and visibility settings for one entity type. */
           public class EntityEditScreen extends Screen {
-              private static final int PW = 300;
+              private static final int PW = 320;
               private static final int PH = 254;
 
               private final Screen parent;
@@ -1175,14 +1223,44 @@ jobs:
                       save();
                   }));
 
-                  buttons.add(new UiButton(x, y + 88, (w - 6) / 2, 18,
+                  int half = (w - 6) / 2;
+                  buttons.add(new UiButton(x, y + 88, half - 22, 18,
+                      () -> "Target: " + (hasTarget() ? "Custom" : "Global"),
+                      () -> this.client.setScreen(new ColorPickerScreen(this, "Targeted color: " + entityName,
+                          cfg.effectiveTargetColor(entityId), rgb -> {
+                              cfg.edit(entityId).targetColor = rgb;
+                              save();
+                          }))).withSwatch(() -> cfg.effectiveTargetColor(entityId)));
+                  buttons.add(new UiButton(x + half - 18, y + 88, 18, 18, () -> "x", () -> {
+                      HitboxConfig.EntitySettings s = cfg.settings(entityId);
+                      if (s != null) {
+                          s.targetColor = null;
+                          save();
+                      }
+                  }));
+                  buttons.add(new UiButton(x + half + 6, y + 88, half - 22, 18,
+                      () -> "On hit: " + (hasHit() ? "Custom" : "Global"),
+                      () -> this.client.setScreen(new ColorPickerScreen(this, "On-hit color: " + entityName,
+                          cfg.effectiveHitColor(entityId), rgb -> {
+                              cfg.edit(entityId).hitColor = rgb;
+                              save();
+                          }))).withSwatch(() -> cfg.effectiveHitColor(entityId)));
+                  buttons.add(new UiButton(x + w - 18, y + 88, 18, 18, () -> "x", () -> {
+                      HitboxConfig.EntitySettings s = cfg.settings(entityId);
+                      if (s != null) {
+                          s.hitColor = null;
+                          save();
+                      }
+                  }));
+
+                  buttons.add(new UiButton(x, y + 110, (w - 6) / 2, 18,
                       () -> "Reset this entity",
                       () -> {
                           cfg.entities.remove(entityId);
                           HitboxConfig.save();
                       }));
 
-                  buttons.add(new UiButton(x + (w - 6) / 2 + 6, y + 88, (w - 6) / 2, 18,
+                  buttons.add(new UiButton(x + (w - 6) / 2 + 6, y + 110, (w - 6) / 2, 18,
                       () -> "Back",
                       this::close));
               }
@@ -1193,6 +1271,16 @@ jobs:
 
               private int swatchY() {
                   return py() + 75;
+              }
+
+              private boolean hasTarget() {
+                  HitboxConfig.EntitySettings s = HitboxConfig.get().settings(entityId);
+                  return s != null && s.targetColor != null;
+              }
+
+              private boolean hasHit() {
+                  HitboxConfig.EntitySettings s = HitboxConfig.get().settings(entityId);
+                  return s != null && s.hitColor != null;
               }
 
               private String thicknessLabel() {
@@ -1242,10 +1330,9 @@ jobs:
                       b.draw(g, this.textRenderer, mouseX, mouseY);
                   }
 
-                  int ty = py + 92 + 88 + 26;
-                  g.drawText(this.textRenderer, "Default: shown while hitboxes are on (F3+B or hotkey).", px + 14, ty, Theme.DIM, false);
-                  g.drawText(this.textRenderer, "Always on: shown even when hitboxes are off.", px + 14, ty + 11, Theme.DIM, false);
-                  g.drawText(this.textRenderer, "Never on: never shown.", px + 14, ty + 22, Theme.DIM, false);
+                  int ty = py + 92 + 110 + 24;
+                  g.drawText(this.textRenderer, "Default: follows F3+B or the hotkey. Always on: forced on.", px + 14, ty, Theme.DIM, false);
+                  g.drawText(this.textRenderer, "Never on: hidden. Target/On hit: x clears back to global.", px + 14, ty + 11, Theme.DIM, false);
 
                   super.render(g, mouseX, mouseY, delta);
               }
@@ -1357,6 +1444,8 @@ jobs:
                   int bw = (panelW - gap * 2) / 3;
                   int row1 = 30;
                   int row2 = 52;
+                  int row3 = 74;
+                  int bw4 = (panelW - gap * 3) / 4;
 
                   buttons.add(new UiButton(left, row1, bw, 18,
                       () -> "Mod: " + (cfg.enabled ? "ON" : "OFF"),
@@ -1396,7 +1485,34 @@ jobs:
                           HitboxConfig.save();
                       }));
 
-                  search = new TextFieldWidget(this.textRenderer, left, 76, panelW, 18, Text.literal("Search"));
+                  buttons.add(new UiButton(left, row3, bw4, 18,
+                      () -> "Targeted: " + (cfg.targetColorEnabled ? "ON" : "OFF"),
+                      () -> {
+                          cfg.targetColorEnabled = !cfg.targetColorEnabled;
+                          HitboxConfig.save();
+                      }));
+                  buttons.add(new UiButton(left + bw4 + gap, row3, bw4, 18,
+                      () -> "Target color...",
+                      () -> this.client.setScreen(new ColorPickerScreen(this, "Color when targeted (all entities)", cfg.targetColor, rgb -> {
+                          cfg.targetColor = rgb;
+                          cfg.targetColorEnabled = true;
+                          HitboxConfig.save();
+                      }))).withSwatch(() -> cfg.targetColor));
+                  buttons.add(new UiButton(left + (bw4 + gap) * 2, row3, bw4, 18,
+                      () -> "On hit: " + (cfg.hitColorEnabled ? "ON" : "OFF"),
+                      () -> {
+                          cfg.hitColorEnabled = !cfg.hitColorEnabled;
+                          HitboxConfig.save();
+                      }));
+                  buttons.add(new UiButton(left + (bw4 + gap) * 3, row3, bw4, 18,
+                      () -> "Hit color...",
+                      () -> this.client.setScreen(new ColorPickerScreen(this, "Color when hit (all entities)", cfg.hitColor, rgb -> {
+                          cfg.hitColor = rgb;
+                          cfg.hitColorEnabled = true;
+                          HitboxConfig.save();
+                      }))).withSwatch(() -> cfg.hitColor));
+
+                  search = new TextFieldWidget(this.textRenderer, left, 98, panelW, 18, Text.literal("Search"));
                   search.setPlaceholder(Text.literal("Search any entity (name or id)..."));
                   search.setMaxLength(64);
                   search.setChangedListener(text -> {
@@ -1406,7 +1522,7 @@ jobs:
                   addDrawableChild(search);
                   setInitialFocus(search);
 
-                  listTop = 100;
+                  listTop = 122;
                   listBottom = this.height - 30;
 
                   buttons.add(new UiButton((this.width - 100) / 2, this.height - 24, 100, 18, () -> "Done", this::close));
