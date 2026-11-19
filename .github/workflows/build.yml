@@ -1,5 +1,9 @@
 name: Build Hitbox Customizer
 
+# Single-file setup: this workflow writes the whole mod project, then builds the jar.
+# Put it at .github/workflows/build.yml, push, then open Actions > latest run > Artifacts.
+# Push a tag like v1.0.0 to also attach the jar to a GitHub Release.
+
 on:
   push:
     branches: [main, master]
@@ -111,9 +115,7 @@ jobs:
               "homepage": "https://modrinth.com/project/Customized-Hitboxes"
             },
             "authors": ["M4rkusXDD"],
-            "contributors": {
-              "Beezwho": "Icon"
-            },
+            "contributors": ["Beezwho"],
             "license": "MIT",
             "icon": "assets/hitboxcustomizer/icon.png",
             "environment": "client",
