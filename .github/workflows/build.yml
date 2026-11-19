@@ -1,9 +1,5 @@
 name: Build Hitbox Customizer
 
-# Single-file setup: this workflow writes the whole mod project, then builds the jar.
-# Put it at .github/workflows/build.yml, push, then open Actions > latest run > Artifacts.
-# Push a tag like v1.0.0 to also attach the jar to a GitHub Release.
-
 on:
   push:
     branches: [main, master]
@@ -110,11 +106,14 @@ jobs:
             "id": "hitboxcustomizer",
             "version": "${version}",
             "name": "Hitbox Customizer",
-            "description": "Customize the color, thickness and visibility of every entity's hitbox. Press H to open the menu. Website: https://modrinth.com/project/Customized-Hitboxes",
+            "description": "Customize the color, thickness and visibility of every entity's hitbox. Press H to open the menu. Made by M4rkusXDD. Icon by Beezwho. Website: https://modrinth.com/project/Customized-Hitboxes",
             "contact": {
               "homepage": "https://modrinth.com/project/Customized-Hitboxes"
             },
-            "authors": ["You"],
+            "authors": ["M4rkusXDD"],
+            "contributors": {
+              "Beezwho": "Icon"
+            },
             "license": "MIT",
             "icon": "assets/hitboxcustomizer/icon.png",
             "environment": "client",
@@ -1636,6 +1635,8 @@ jobs:
                   g.fill(0, 0, this.width, this.height, Theme.DIM_BG);
 
                   g.drawText(this.textRenderer, this.title, left, 12, Theme.TEXT, false);
+                  g.drawText(this.textRenderer, "Made by M4rkusXDD | Icon by Beezwho",
+                      left + this.textRenderer.getWidth(this.title) + 10, 12, Theme.DIM, false);
 
                   firstRow = MathHelper.clamp(firstRow, 0, maxFirstRow());
                   int rows = visibleRows();
