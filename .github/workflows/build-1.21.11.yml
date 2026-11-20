@@ -1,8 +1,8 @@
-name: Build Hitbox Customizer
+name: Build Hitbox Customizer (Minecraft 1.21.11)
 
-# Single-file setup: this workflow writes the whole mod project, then builds the jar.
-# Put it at .github/workflows/build.yml, push, then open Actions > latest run > Artifacts.
-# Push a tag like v1.0.0 to also attach the jar to a GitHub Release.
+# Single-file setup for Minecraft 1.21.11.
+# Put this file at .github/workflows/build-1.21.11.yml, push, then open
+# Actions > latest run > Artifacts. Push a tag like v1.0.0 to also attach the jar to a Release.
 
 on:
   push:
@@ -29,37 +29,6 @@ jobs:
       - name: Write mod project files
         run: |
           mkdir -p mod && cd mod
-          cat > settings.gradle <<'HB_EOF'
-          pluginManagement {
-              repositories {
-                  maven {
-                      name = 'Fabric'
-                      url = 'https://maven.fabricmc.net/'
-                  }
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          rootProject.name = 'hitbox-customizer'
-          HB_EOF
-          cat > gradle.properties <<'HB_EOF'
-          org.gradle.jvmargs=-Xmx2G
-          org.gradle.parallel=true
-
-          # Minecraft / Fabric (1.21.11 is the last version that uses Yarn)
-          minecraft_version=1.21.11
-          yarn_mappings=1.21.11+build.4
-          loader_version=0.18.4
-          fabric_version=0.141.3+1.21.11
-
-          # Mod Menu is compile-only (optional at runtime)
-          modmenu_version=17.0.0
-
-          # Mod metadata
-          mod_version=1.0.0
-          maven_group=com.hitboxcustomizer
-          archives_base_name=hitbox-customizer
-          HB_EOF
           cat > build.gradle <<'HB_EOF'
           plugins {
               id 'fabric-loom' version '1.14-SNAPSHOT'
@@ -103,68 +72,36 @@ jobs:
               targetCompatibility = JavaVersion.VERSION_21
           }
           HB_EOF
-          mkdir -p src/main/resources
-          cat > src/main/resources/fabric.mod.json <<'HB_EOF'
-          {
-            "schemaVersion": 1,
-            "id": "hitboxcustomizer",
-            "version": "${version}",
-            "name": "Hitbox Customizer",
-            "description": "Customize the color, thickness and visibility of every entity's hitbox. Press H to open the menu. Made by M4rkusXDD. Icon by Beezwho. Website: https://modrinth.com/project/Customized-Hitboxes",
-            "contact": {
-              "homepage": "https://modrinth.com/project/Customized-Hitboxes"
-            },
-            "authors": ["M4rkusXDD"],
-            "contributors": ["Beezwho"],
-            "license": "MIT",
-            "icon": "assets/hitboxcustomizer/icon.png",
-            "environment": "client",
-            "entrypoints": {
-              "client": ["com.hitboxcustomizer.HitboxCustomizerClient"],
-              "modmenu": ["com.hitboxcustomizer.gui.ModMenuIntegration"]
-            },
-            "mixins": ["hitboxcustomizer.mixins.json"],
-            "depends": {
-              "fabricloader": ">=0.18.1",
-              "minecraft": "~1.21.11",
-              "java": ">=21",
-              "fabric-api": "*"
-            },
-            "suggests": {
-              "modmenu": "*"
-            },
-            "custom": {
-              "modmenu": {
-                "links": {
-                  "Modrinth": "https://modrinth.com/project/Customized-Hitboxes"
-                }
+          cat > gradle.properties <<'HB_EOF'
+          org.gradle.jvmargs=-Xmx2G
+          org.gradle.parallel=true
+
+          # Minecraft / Fabric (1.21.11 is the last version that uses Yarn)
+          minecraft_version=1.21.11
+          yarn_mappings=1.21.11+build.4
+          loader_version=0.18.4
+          fabric_version=0.141.3+1.21.11
+
+          # Mod Menu is compile-only (optional at runtime)
+          modmenu_version=17.0.0
+
+          # Mod metadata
+          mod_version=1.0.2
+          maven_group=com.hitboxcustomizer
+          archives_base_name=hitbox-customizer-mc1.21.11
+          HB_EOF
+          cat > settings.gradle <<'HB_EOF'
+          pluginManagement {
+              repositories {
+                  maven {
+                      name = 'Fabric'
+                      url = 'https://maven.fabricmc.net/'
+                  }
+                  mavenCentral()
+                  gradlePluginPortal()
               }
-            }
           }
-          HB_EOF
-          mkdir -p src/main/resources
-          cat > src/main/resources/hitboxcustomizer.mixins.json <<'HB_EOF'
-          {
-            "required": true,
-            "minVersion": "0.8",
-            "package": "com.hitboxcustomizer.mixin",
-            "compatibilityLevel": "JAVA_21",
-            "client": [
-              "DebugRendererMixin",
-              "EntityHitboxDebugRendererMixin"
-            ],
-            "injectors": {
-              "defaultRequire": 1
-            }
-          }
-          HB_EOF
-          mkdir -p src/main/resources/assets/hitboxcustomizer/lang
-          cat > src/main/resources/assets/hitboxcustomizer/lang/en_us.json <<'HB_EOF'
-          {
-            "key.category.hitboxcustomizer.main": "Hitbox Customizer",
-            "key.hitboxcustomizer.open_menu": "Open Hitbox Menu",
-            "key.hitboxcustomizer.toggle_hitboxes": "Toggle Hitboxes"
-          }
+          rootProject.name = 'hitbox-customizer'
           HB_EOF
           mkdir -p src/main/java/com/hitboxcustomizer
           cat > src/main/java/com/hitboxcustomizer/EntityColors.java <<'HB_EOF'
@@ -512,7 +449,6 @@ jobs:
           import net.minecraft.entity.boss.dragon.EnderDragonPart;
           import net.minecraft.registry.Registries;
           import net.minecraft.text.Text;
-          import net.minecraft.util.Identifier;
           import net.minecraft.util.math.Box;
           import net.minecraft.util.math.Vec3d;
           import net.minecraft.world.debug.gizmo.GizmoDrawing;
@@ -526,7 +462,6 @@ jobs:
            * "visible while F3+B (or the quick toggle hotkey) has hitboxes on".
            */
           public final class HitboxRenderer {
-              private static final Identifier VANILLA_HITBOX_ENTRY = Identifier.ofVanilla("entity_hitboxes");
               private static final Map<EntityType<?>, String> ID_CACHE = new HashMap<>();
 
               /** Set by the vanilla hitbox renderer mixin whenever vanilla would draw hitboxes this frame. */
@@ -538,21 +473,21 @@ jobs:
               private HitboxRenderer() {
               }
 
+              /** True while F3+B hitboxes were turned off by the quick toggle hotkey. Cleared when F3+B goes off. */
+              private static boolean suppressVanilla = false;
+
               public static boolean isDefaultOn() {
-                  return quickOn || vanillaActive;
+                  return (quickOn || vanillaActive) && !suppressVanilla;
               }
 
               public static void quickToggle(MinecraftClient mc) {
                   if (isDefaultOn()) {
                       quickOn = false;
                       if (vanillaActive) {
-                          try {
-                              mc.debugHudEntryList.toggleVisibility(VANILLA_HITBOX_ENTRY);
-                          } catch (Throwable ignored) {
-                              // If this ever fails, F3+B still works for turning vanilla hitboxes off.
-                          }
+                          suppressVanilla = true;
                       }
                   } else {
+                      suppressVanilla = false;
                       quickOn = true;
                   }
                   if (mc.player != null) {
@@ -563,6 +498,9 @@ jobs:
               public static void onFrame(Frustum frustum, double camX, double camY, double camZ, float tickProgress) {
                   vanillaActive = vanillaSeen;
                   vanillaSeen = false;
+                  if (!vanillaActive) {
+                      suppressVanilla = false;
+                  }
                   render(frustum, camX, camY, camZ, tickProgress);
               }
 
@@ -581,7 +519,7 @@ jobs:
                   boolean firstPerson = mc.options.getPerspective().isFirstPerson();
 
                   for (Entity entity : mc.world.getEntities()) {
-                      if (entity == mc.player && firstPerson) {
+                      if (entity == mc.player && (firstPerson || cfg.hideOwnPlayer())) {
                           continue;
                       }
 
@@ -681,6 +619,11 @@ jobs:
                   public float thickness = 0f;
                   // Per-entity colors for the targeted and on-hit states. null means use the global color.
                   // Player only: show the hitbox only while gliding with an elytra and/or swimming.
+                  // Player only: use the player's own targeted / on-hit colors (otherwise the global ones apply).
+                  public boolean targetOn = false;
+                  public boolean hitOn = false;
+                  // Player only: never draw the local player's own hitbox.
+                  public boolean onlyOtherPlayers = false;
                   public boolean onlyElytra = false;
                   public boolean onlySwimming = false;
                   public Integer targetColor = null;
@@ -689,7 +632,7 @@ jobs:
                   public boolean isDefault() {
                       return !useCustomColor && mode == Mode.DEFAULT && thickness <= 0f
                           && targetColor == null && hitColor == null
-                          && !onlyElytra && !onlySwimming;
+                          && !onlyElytra && !onlySwimming && !targetOn && !hitOn && !onlyOtherPlayers;
                   }
               }
 
@@ -750,11 +693,27 @@ jobs:
                   return s == null || s.mode == null ? Mode.DEFAULT : s.mode;
               }
 
-              /** Hit color beats targeted color, which beats the normal color. */
+              private static final String PLAYER_ID = "minecraft:player";
+
+              /** True when the player screen asks to skip the local player's own hitbox. */
+              public boolean hideOwnPlayer() {
+                  EntitySettings s = entities.get(PLAYER_ID);
+                  return s != null && s.onlyOtherPlayers;
+              }
+
+              /**
+               * Hit color beats targeted color, which beats the normal color. The player uses its own
+               * colors only when its toggles are on, other entities use theirs whenever one is set.
+               */
               public int finalColor(String id, boolean hit, boolean targeted) {
                   EntitySettings s = entities.get(id);
+                  boolean player = PLAYER_ID.equals(id);
                   if (hit) {
-                      if (s != null && s.hitColor != null) {
+                      if (player) {
+                          if (s != null && s.hitOn) {
+                              return (s.hitColor != null ? s.hitColor : 0xFF0000) & 0xFFFFFF;
+                          }
+                      } else if (s != null && s.hitColor != null) {
                           return s.hitColor & 0xFFFFFF;
                       }
                       if (hitColorEnabled) {
@@ -762,7 +721,11 @@ jobs:
                       }
                   }
                   if (targeted) {
-                      if (s != null && s.targetColor != null) {
+                      if (player) {
+                          if (s != null && s.targetOn) {
+                              return (s.targetColor != null ? s.targetColor : 0xFFFF00) & 0xFFFFFF;
+                          }
+                      } else if (s != null && s.targetColor != null) {
                           return s.targetColor & 0xFFFFFF;
                       }
                       if (targetColorEnabled) {
@@ -895,6 +858,9 @@ jobs:
 
           /** Hue bar + saturation/brightness square + hex box. */
           public class ColorPickerScreen extends Screen {
+              // Mouse position from the last frame, in the same units the buttons are drawn in.
+              private double lastMouseX;
+              private double lastMouseY;
               private static final int SV = 120;
               private static final int PW = 262;
               private static final int PH = 214;
@@ -1016,6 +982,8 @@ jobs:
 
               @Override
               public void render(DrawContext g, int mouseX, int mouseY, float delta) {
+                  lastMouseX = mouseX;
+                  lastMouseY = mouseY;
                   g.fill(0, 0, this.width, this.height, Theme.DIM_BG);
 
                   int px = px();
@@ -1087,14 +1055,11 @@ jobs:
 
               @Override
               public boolean mouseClicked(Click click, boolean doubled) {
-                  if (super.mouseClicked(click, doubled)) {
-                      return true;
-                  }
                   if (click.button() != 0) {
-                      return false;
+                      return super.mouseClicked(click, doubled);
                   }
-                  double mx = click.x();
-                  double my = click.y();
+                  double mx = lastMouseX;
+                  double my = lastMouseY;
 
                   if (mx >= svX() && mx < svX() + SV && my >= svY() && my < svY() + SV) {
                       drag = 1;
@@ -1125,17 +1090,17 @@ jobs:
                       cancel.click();
                       return true;
                   }
-                  return false;
+                  return super.mouseClicked(click, doubled);
               }
 
               @Override
               public boolean mouseDragged(Click click, double offsetX, double offsetY) {
                   if (drag == 1) {
-                      updateSquare(click.x(), click.y());
+                      updateSquare(lastMouseX, lastMouseY);
                       return true;
                   }
                   if (drag == 2) {
-                      updateHue(click.y());
+                      updateHue(lastMouseY);
                       return true;
                   }
                   return super.mouseDragged(click, offsetX, offsetY);
@@ -1172,6 +1137,9 @@ jobs:
 
           /** Color and visibility settings for one entity type. */
           public class EntityEditScreen extends Screen {
+              // Mouse position from the last frame, in the same units the buttons are drawn in.
+              private double lastMouseX;
+              private double lastMouseY;
               private static final int PW = 320;
               private static final int BASE_PH = 254;
 
@@ -1196,7 +1164,7 @@ jobs:
               }
 
               private int ph() {
-                  return BASE_PH + (isPlayer() ? 32 : 0);
+                  return BASE_PH + (isPlayer() ? 12 : 0);
               }
 
               private int py() {
@@ -1210,6 +1178,11 @@ jobs:
                   int x = px() + 14;
                   int w = PW - 28;
                   int y = py() + 92;
+
+                  if (isPlayer()) {
+                      initPlayer(cfg, x, y, w);
+                      return;
+                  }
 
                   buttons.add(new UiButton(x, y, w, 18,
                       () -> "Use custom color: " + (isCustom() ? "ON" : "OFF"),
@@ -1290,26 +1263,6 @@ jobs:
                   }));
 
                   int bottomY = y + 110;
-                  if (isPlayer()) {
-                      int halfW = (w - 6) / 2;
-                      buttons.add(new UiButton(x, y + 110, halfW, 18, () -> "Elytra only", () -> {
-                          HitboxConfig.EntitySettings s = cfg.edit(entityId);
-                          s.onlyElytra = !s.onlyElytra;
-                          save();
-                      }).withCheckbox(() -> {
-                          HitboxConfig.EntitySettings s = cfg.settings(entityId);
-                          return s != null && s.onlyElytra;
-                      }));
-                      buttons.add(new UiButton(x + halfW + 6, y + 110, halfW, 18, () -> "Swimming only", () -> {
-                          HitboxConfig.EntitySettings s = cfg.edit(entityId);
-                          s.onlySwimming = !s.onlySwimming;
-                          save();
-                      }).withCheckbox(() -> {
-                          HitboxConfig.EntitySettings s = cfg.settings(entityId);
-                          return s != null && s.onlySwimming;
-                      }));
-                      bottomY = y + 132;
-                  }
                   buttons.add(new UiButton(x, bottomY, (w - 6) / 2, 18,
                       () -> "Reset this entity",
                       () -> {
@@ -1320,6 +1273,144 @@ jobs:
                   buttons.add(new UiButton(x + (w - 6) / 2 + 6, bottomY, (w - 6) / 2, 18,
                       () -> "Back",
                       this::close));
+              }
+
+              private void initPlayer(HitboxConfig cfg, int x, int y, int w) {
+                  int half = (w - 6) / 2;
+                  int step = 21;
+                  int x2 = x + half + 6;
+
+                  // Row 0: custom color
+                  buttons.add(new UiButton(x, y, half, 18,
+                      () -> "Custom color: " + (isCustom() ? "ON" : "OFF"),
+                      () -> {
+                          HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                          s.useCustomColor = !s.useCustomColor;
+                          save();
+                      }));
+                  buttons.add(new UiButton(x2, y, half, 18,
+                      () -> "Choose color...",
+                      () -> this.client.setScreen(new ColorPickerScreen(this, "Player hitbox color",
+                          cfg.edit(entityId).color, EntityColors.palette(entityId), rgb -> {
+                              HitboxConfig.EntitySettings edited = cfg.edit(entityId);
+                              edited.color = rgb;
+                              edited.useCustomColor = true;
+                              save();
+                          }))).withSwatch(() -> {
+                              HitboxConfig.EntitySettings s = cfg.settings(entityId);
+                              return s == null ? 0xFFFFFF : s.color;
+                          }));
+
+                  // Row 1: visibility
+                  buttons.add(new UiButton(x, y + step, w, 18,
+                      () -> "Show hitbox: " + cfg.modeFor(entityId).label(),
+                      () -> {
+                          HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                          s.mode = s.mode.next();
+                          save();
+                      }));
+
+                  // Row 2: thickness
+                  buttons.add(new UiButton(x, y + step * 2, 24, 18, () -> "-", () -> {
+                      HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                      s.thickness = s.thickness <= 0.5f ? 0f : s.thickness - 0.5f;
+                      save();
+                  }));
+                  buttons.add(new UiButton(x + 28, y + step * 2, w - 56, 18,
+                      () -> "Thickness: " + thicknessLabel(), () -> {
+                          HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                          s.thickness = 0f;
+                          save();
+                      }));
+                  buttons.add(new UiButton(x + w - 24, y + step * 2, 24, 18, () -> "+", () -> {
+                      HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                      s.thickness = s.thickness <= 0f ? 1.0f : Math.min(10f, s.thickness + 0.5f);
+                      save();
+                  }));
+
+                  // Row 3: player-only targeted color
+                  buttons.add(new UiButton(x, y + step * 3, half, 18,
+                      () -> "Targeted: " + (playerFlag(true) ? "ON" : "OFF"),
+                      () -> {
+                          HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                          s.targetOn = !s.targetOn;
+                          save();
+                      }));
+                  buttons.add(new UiButton(x2, y + step * 3, half, 18,
+                      () -> "Target color...",
+                      () -> this.client.setScreen(new ColorPickerScreen(this, "Player targeted color",
+                          playerColor(true), rgb -> {
+                              HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                              s.targetColor = rgb;
+                              s.targetOn = true;
+                              save();
+                          }))).withSwatch(() -> playerColor(true)));
+
+                  // Row 4: player-only on-hit color
+                  buttons.add(new UiButton(x, y + step * 4, half, 18,
+                      () -> "On hit: " + (playerFlag(false) ? "ON" : "OFF"),
+                      () -> {
+                          HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                          s.hitOn = !s.hitOn;
+                          save();
+                      }));
+                  buttons.add(new UiButton(x2, y + step * 4, half, 18,
+                      () -> "Hit color...",
+                      () -> this.client.setScreen(new ColorPickerScreen(this, "Player on-hit color",
+                          playerColor(false), rgb -> {
+                              HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                              s.hitColor = rgb;
+                              s.hitOn = true;
+                              save();
+                          }))).withSwatch(() -> playerColor(false)));
+
+                  // Row 5: elytra / swimming filters
+                  buttons.add(new UiButton(x, y + step * 5, half, 18, () -> "Elytra only", () -> {
+                      HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                      s.onlyElytra = !s.onlyElytra;
+                      save();
+                  }).withCheckbox(() -> {
+                      HitboxConfig.EntitySettings s = cfg.settings(entityId);
+                      return s != null && s.onlyElytra;
+                  }));
+                  buttons.add(new UiButton(x2, y + step * 5, half, 18, () -> "Swimming only", () -> {
+                      HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                      s.onlySwimming = !s.onlySwimming;
+                      save();
+                  }).withCheckbox(() -> {
+                      HitboxConfig.EntitySettings s = cfg.settings(entityId);
+                      return s != null && s.onlySwimming;
+                  }));
+
+                  // Row 6: other players only
+                  buttons.add(new UiButton(x, y + step * 6, w, 18, () -> "Only other players (hide my own hitbox)", () -> {
+                      HitboxConfig.EntitySettings s = cfg.edit(entityId);
+                      s.onlyOtherPlayers = !s.onlyOtherPlayers;
+                      save();
+                  }).withCheckbox(() -> {
+                      HitboxConfig.EntitySettings s = cfg.settings(entityId);
+                      return s != null && s.onlyOtherPlayers;
+                  }));
+
+                  // Row 7: reset / back
+                  buttons.add(new UiButton(x, y + step * 7, half, 18,
+                      () -> "Reset player",
+                      () -> {
+                          cfg.entities.remove(entityId);
+                          HitboxConfig.save();
+                      }));
+                  buttons.add(new UiButton(x2, y + step * 7, half, 18, () -> "Back", this::close));
+              }
+
+              private boolean playerFlag(boolean target) {
+                  HitboxConfig.EntitySettings s = HitboxConfig.get().settings(entityId);
+                  return s != null && (target ? s.targetOn : s.hitOn);
+              }
+
+              private int playerColor(boolean target) {
+                  HitboxConfig.EntitySettings s = HitboxConfig.get().settings(entityId);
+                  Integer own = s == null ? null : (target ? s.targetColor : s.hitColor);
+                  return (own != null ? own : (target ? 0xFFFF00 : 0xFF0000)) & 0xFFFFFF;
               }
 
               private int swatchX(int i) {
@@ -1356,6 +1447,8 @@ jobs:
 
               @Override
               public void render(DrawContext g, int mouseX, int mouseY, float delta) {
+                  lastMouseX = mouseX;
+                  lastMouseY = mouseY;
                   HitboxConfig cfg = HitboxConfig.get();
                   g.fill(0, 0, this.width, this.height, Theme.DIM_BG);
 
@@ -1387,11 +1480,10 @@ jobs:
                       b.draw(g, this.textRenderer, mouseX, mouseY);
                   }
 
-                  int ty = py + 92 + 110 + 24 + (isPlayer() ? 22 : 0);
+                  int ty = py + 92 + 110 + 24;
+                  if (!isPlayer()) {
                   g.drawText(this.textRenderer, "Default: follows F3+B or the hotkey. Always on: forced on.", px + 14, ty, Theme.DIM, false);
                   g.drawText(this.textRenderer, "Never on: hidden. Target/On hit: x clears back to global.", px + 14, ty + 11, Theme.DIM, false);
-                  if (isPlayer()) {
-                      g.drawText(this.textRenderer, "Elytra/Swimming only: player box shows only during checked actions.", px + 14, ty + 22, Theme.DIM, false);
                   }
 
                   super.render(g, mouseX, mouseY, delta);
@@ -1402,8 +1494,8 @@ jobs:
                   if (click.button() == 0) {
                       int[] palette = EntityColors.palette(entityId);
                       for (int i = 0; i < palette.length && i < 10; i++) {
-                          if (click.x() >= swatchX(i) && click.x() < swatchX(i) + 14
-                              && click.y() >= swatchY() && click.y() < swatchY() + 14) {
+                          if (lastMouseX >= swatchX(i) && lastMouseX < swatchX(i) + 14
+                              && lastMouseY >= swatchY() && lastMouseY < swatchY() + 14) {
                               HitboxConfig.EntitySettings s = HitboxConfig.get().edit(entityId);
                               s.color = palette[i];
                               s.useCustomColor = true;
@@ -1412,7 +1504,7 @@ jobs:
                           }
                       }
                       for (UiButton b : buttons) {
-                          if (b.contains(click.x(), click.y())) {
+                          if (b.contains(lastMouseX, lastMouseY)) {
                               b.click();
                               return true;
                           }
@@ -1457,7 +1549,13 @@ jobs:
 
           /** Main menu: global options on top, searchable list of every entity type below. */
           public class HitboxMenuScreen extends Screen {
+              // Mouse position from the last frame, in the same units the buttons are drawn in.
+              private double lastMouseX;
+              private double lastMouseY;
               private static final int ROW_H = 24;
+              private static final String VERSION = net.fabricmc.loader.api.FabricLoader.getInstance()
+                  .getModContainer("hitboxcustomizer")
+                  .map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse("dev");
 
               private record Entry(String id, String name, String haystack) {
               }
@@ -1485,6 +1583,9 @@ jobs:
                       List<Entry> list = new ArrayList<>();
                       for (EntityType<?> type : Registries.ENTITY_TYPE) {
                           Identifier id = Registries.ENTITY_TYPE.getId(type);
+                          if (id.toString().equals("minecraft:player")) {
+                              continue;
+                          }
                           String name = type.getName().getString();
                           list.add(new Entry(id.toString(), name, (name + " " + id).toLowerCase(Locale.ROOT)));
                       }
@@ -1576,7 +1677,10 @@ jobs:
                   buttons.add(new UiButton(left + panelW - 90, 6, 90, 16, () -> "Modrinth page",
                       () -> ConfirmLinkScreen.open(this, "https://modrinth.com/project/Customized-Hitboxes")));
 
-                  search = new TextFieldWidget(this.textRenderer, left, 98, panelW, 18, Text.literal("Search"));
+                  buttons.add(new UiButton(left + panelW - 104, 98, 104, 18, () -> "Player settings",
+                      () -> this.client.setScreen(new EntityEditScreen(this, "minecraft:player", "Player"))));
+
+                  search = new TextFieldWidget(this.textRenderer, left, 98, panelW - 110, 18, Text.literal("Search"));
                   search.setPlaceholder(Text.literal("Search any entity (name or id)..."));
                   search.setMaxLength(64);
                   search.setChangedListener(text -> {
@@ -1633,11 +1737,13 @@ jobs:
 
               @Override
               public void render(DrawContext g, int mouseX, int mouseY, float delta) {
+                  lastMouseX = mouseX;
+                  lastMouseY = mouseY;
                   HitboxConfig cfg = HitboxConfig.get();
                   g.fill(0, 0, this.width, this.height, Theme.DIM_BG);
 
                   g.drawText(this.textRenderer, this.title, left, 12, Theme.TEXT, false);
-                  g.drawText(this.textRenderer, "Made by M4rkusXDD | Icon by Beezwho",
+                  g.drawText(this.textRenderer, "v" + VERSION + " | Made by M4rkusXDD | Icon by Beezwho",
                       left + this.textRenderer.getWidth(this.title) + 10, 12, Theme.DIM, false);
 
                   firstRow = MathHelper.clamp(firstRow, 0, maxFirstRow());
@@ -1703,14 +1809,11 @@ jobs:
 
               @Override
               public boolean mouseClicked(Click click, boolean doubled) {
-                  if (super.mouseClicked(click, doubled)) {
-                      return true;
-                  }
                   if (click.button() != 0) {
-                      return false;
+                      return super.mouseClicked(click, doubled);
                   }
-                  double mx = click.x();
-                  double my = click.y();
+                  double mx = lastMouseX;
+                  double my = lastMouseY;
 
                   for (UiButton b : buttons) {
                       if (b.contains(mx, my)) {
@@ -1728,7 +1831,7 @@ jobs:
                           return true;
                       }
                   }
-                  return false;
+                  return super.mouseClicked(click, doubled);
               }
 
               @Override
@@ -1921,6 +2024,70 @@ jobs:
               }
           }
           HB_EOF
+          mkdir -p src/main/resources/assets/hitboxcustomizer/lang
+          cat > src/main/resources/assets/hitboxcustomizer/lang/en_us.json <<'HB_EOF'
+          {
+            "key.category.hitboxcustomizer.main": "Hitbox Customizer",
+            "key.hitboxcustomizer.open_menu": "Open Hitbox Menu",
+            "key.hitboxcustomizer.toggle_hitboxes": "Toggle Hitboxes"
+          }
+          HB_EOF
+          mkdir -p src/main/resources
+          cat > src/main/resources/fabric.mod.json <<'HB_EOF'
+          {
+            "schemaVersion": 1,
+            "id": "hitboxcustomizer",
+            "version": "${version}",
+            "name": "Hitbox Customizer",
+            "description": "Customize the color, thickness and visibility of every entity's hitbox. Press H to open the menu. Made by M4rkusXDD. Icon by Beezwho. Website: https://modrinth.com/project/Customized-Hitboxes",
+            "contact": {
+              "homepage": "https://modrinth.com/project/Customized-Hitboxes"
+            },
+            "authors": ["M4rkusXDD"],
+            "contributors": ["Beezwho"],
+            "license": "MIT",
+            "icon": "assets/hitboxcustomizer/icon.png",
+            "environment": "client",
+            "entrypoints": {
+              "client": ["com.hitboxcustomizer.HitboxCustomizerClient"],
+              "modmenu": ["com.hitboxcustomizer.gui.ModMenuIntegration"]
+            },
+            "mixins": ["hitboxcustomizer.mixins.json"],
+            "depends": {
+              "fabricloader": ">=0.18.1",
+              "minecraft": "~1.21.11",
+              "java": ">=21",
+              "fabric-api": "*"
+            },
+            "suggests": {
+              "modmenu": "*"
+            },
+            "custom": {
+              "modmenu": {
+                "links": {
+                  "Modrinth": "https://modrinth.com/project/Customized-Hitboxes"
+                }
+              }
+            }
+          }
+          HB_EOF
+          mkdir -p src/main/resources
+          cat > src/main/resources/hitboxcustomizer.mixins.json <<'HB_EOF'
+          {
+            "required": true,
+            "minVersion": "0.8",
+            "package": "com.hitboxcustomizer.mixin",
+            "compatibilityLevel": "JAVA_21",
+            "client": [
+              "DebugRendererMixin",
+              "EntityHitboxDebugRendererMixin"
+            ],
+            "injectors": {
+              "defaultRequire": 1
+            }
+          }
+          HB_EOF
+          mkdir -p src/main/resources/assets/hitboxcustomizer
           base64 -d > src/main/resources/assets/hitboxcustomizer/icon.png <<'HB_EOF'
           iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAHV0lEQVR42u2dW2xURRjH/9Velm5L
           aY3SYrFysQYbC6IEtVzFKwRigrRA5MUo8GCCUcCEmPhCfFAxqDGCJJoIwZSLEYxgMCaAoIjElBog
@@ -1965,7 +2132,7 @@ jobs:
       - name: Upload jar
         uses: actions/upload-artifact@v4
         with:
-          name: hitbox-customizer
+          name: hitbox-customizer-1.21.11
           path: mod/build/libs/*.jar
           if-no-files-found: error
 
