@@ -84,7 +84,7 @@ jobs:
           modmenu_version=21.0.0-beta.1
 
           # Mod metadata
-          mod_version=1.0.0
+          mod_version=1.0.1
           maven_group=com.hitboxcustomizer
           archives_base_name=hitbox-customizer-mc26.3
           HB_EOF
@@ -809,6 +809,8 @@ jobs:
           cat > src/main/java/com/hitboxcustomizer/gui/ColorPickerScreen.java <<'HB_EOF'
           package com.hitboxcustomizer.gui;
 
+          import com.mojang.blaze3d.platform.InputConstants;
+
           import com.hitboxcustomizer.EntityColors;
           import net.minecraft.client.input.MouseButtonEvent;
           import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -1019,7 +1021,7 @@ jobs:
 
               @Override
               public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
-                  if (click.button() != 0) {
+                  if (click.button() != InputConstants.MOUSE_BUTTON_LEFT) {
                       return super.mouseClicked(click, doubled);
                   }
                   double mx = lastMouseX;
@@ -1088,6 +1090,8 @@ jobs:
           mkdir -p src/main/java/com/hitboxcustomizer/gui
           cat > src/main/java/com/hitboxcustomizer/gui/EntityEditScreen.java <<'HB_EOF'
           package com.hitboxcustomizer.gui;
+
+          import com.mojang.blaze3d.platform.InputConstants;
 
           import com.hitboxcustomizer.EntityColors;
           import com.hitboxcustomizer.config.HitboxConfig;
@@ -1333,7 +1337,7 @@ jobs:
 
               @Override
               public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
-                  if (click.button() == 0) {
+                  if (click.button() == InputConstants.MOUSE_BUTTON_LEFT) {
                       int[] palette = EntityColors.palette(entityId);
                       for (int i = 0; i < palette.length && i < 10; i++) {
                           if (lastMouseX >= swatchX(i) && lastMouseX < swatchX(i) + 14
@@ -1371,6 +1375,8 @@ jobs:
           cat > src/main/java/com/hitboxcustomizer/gui/HitboxMenuScreen.java <<'HB_EOF'
           package com.hitboxcustomizer.gui;
 
+          import com.mojang.blaze3d.platform.InputConstants;
+
           import com.hitboxcustomizer.HitboxRenderer;
           import com.hitboxcustomizer.config.HitboxConfig;
           import net.minecraft.client.input.MouseButtonEvent;
@@ -1393,6 +1399,9 @@ jobs:
               private double lastMouseX;
               private double lastMouseY;
               private static final int ROW_H = 24;
+              private static final String VERSION = net.fabricmc.loader.api.FabricLoader.getInstance()
+                  .getModContainer("hitboxcustomizer")
+                  .map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse("dev");
 
               private record Entry(String id, String name, String haystack) {
               }
@@ -1571,7 +1580,7 @@ jobs:
                   g.fill(0, 0, this.width, this.height, Theme.DIM_BG);
 
                   g.text(this.font, this.title.getString(), left, 12, Theme.TEXT, false);
-                  g.text(this.font, "Made by M4rkusXDD | Icon by Beezwho",
+                  g.text(this.font, "v" + VERSION + " | Made by M4rkusXDD | Icon by Beezwho",
                       left + this.font.width(this.title.getString()) + 10, 12, Theme.DIM, false);
 
                   firstRow = Mth.clamp(firstRow, 0, maxFirstRow());
@@ -1637,7 +1646,7 @@ jobs:
 
               @Override
               public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
-                  if (click.button() != 0) {
+                  if (click.button() != InputConstants.MOUSE_BUTTON_LEFT) {
                       return super.mouseClicked(click, doubled);
                   }
                   double mx = lastMouseX;
