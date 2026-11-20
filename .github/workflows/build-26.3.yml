@@ -822,6 +822,9 @@ jobs:
 
           /** Hue bar + saturation/brightness square + hex box. */
           public class ColorPickerScreen extends Screen {
+              // Mouse position from the last frame, in the same units the buttons are drawn in.
+              private double lastMouseX;
+              private double lastMouseY;
               private static final int SV = 120;
               private static final int PW = 262;
               private static final int PH = 214;
@@ -943,6 +946,8 @@ jobs:
 
               @Override
               public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
+                  lastMouseX = mouseX;
+                  lastMouseY = mouseY;
                   g.fill(0, 0, this.width, this.height, Theme.DIM_BG);
 
                   int px = px();
@@ -1017,8 +1022,8 @@ jobs:
                   if (click.button() != 0) {
                       return super.mouseClicked(click, doubled);
                   }
-                  double mx = click.x();
-                  double my = click.y();
+                  double mx = lastMouseX;
+                  double my = lastMouseY;
 
                   if (mx >= svX() && mx < svX() + SV && my >= svY() && my < svY() + SV) {
                       drag = 1;
@@ -1055,11 +1060,11 @@ jobs:
               @Override
               public boolean mouseDragged(MouseButtonEvent click, double offsetX, double offsetY) {
                   if (drag == 1) {
-                      updateSquare(click.x(), click.y());
+                      updateSquare(lastMouseX, lastMouseY);
                       return true;
                   }
                   if (drag == 2) {
-                      updateHue(click.y());
+                      updateHue(lastMouseY);
                       return true;
                   }
                   return super.mouseDragged(click, offsetX, offsetY);
@@ -1096,6 +1101,9 @@ jobs:
 
           /** Color and visibility settings for one entity type. */
           public class EntityEditScreen extends Screen {
+              // Mouse position from the last frame, in the same units the buttons are drawn in.
+              private double lastMouseX;
+              private double lastMouseY;
               private static final int PW = 320;
               private static final int BASE_PH = 254;
 
@@ -1280,6 +1288,8 @@ jobs:
 
               @Override
               public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
+                  lastMouseX = mouseX;
+                  lastMouseY = mouseY;
                   HitboxConfig cfg = HitboxConfig.get();
                   g.fill(0, 0, this.width, this.height, Theme.DIM_BG);
 
@@ -1326,8 +1336,8 @@ jobs:
                   if (click.button() == 0) {
                       int[] palette = EntityColors.palette(entityId);
                       for (int i = 0; i < palette.length && i < 10; i++) {
-                          if (click.x() >= swatchX(i) && click.x() < swatchX(i) + 14
-                              && click.y() >= swatchY() && click.y() < swatchY() + 14) {
+                          if (lastMouseX >= swatchX(i) && lastMouseX < swatchX(i) + 14
+                              && lastMouseY >= swatchY() && lastMouseY < swatchY() + 14) {
                               HitboxConfig.EntitySettings s = HitboxConfig.get().edit(entityId);
                               s.color = palette[i];
                               s.useCustomColor = true;
@@ -1336,7 +1346,7 @@ jobs:
                           }
                       }
                       for (UiButton b : buttons) {
-                          if (b.contains(click.x(), click.y())) {
+                          if (b.contains(lastMouseX, lastMouseY)) {
                               b.click();
                               return true;
                           }
@@ -1379,6 +1389,9 @@ jobs:
 
           /** Main menu: global options on top, searchable list of every entity type below. */
           public class HitboxMenuScreen extends Screen {
+              // Mouse position from the last frame, in the same units the buttons are drawn in.
+              private double lastMouseX;
+              private double lastMouseY;
               private static final int ROW_H = 24;
 
               private record Entry(String id, String name, String haystack) {
@@ -1552,6 +1565,8 @@ jobs:
 
               @Override
               public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
+                  lastMouseX = mouseX;
+                  lastMouseY = mouseY;
                   HitboxConfig cfg = HitboxConfig.get();
                   g.fill(0, 0, this.width, this.height, Theme.DIM_BG);
 
@@ -1625,8 +1640,8 @@ jobs:
                   if (click.button() != 0) {
                       return super.mouseClicked(click, doubled);
                   }
-                  double mx = click.x();
-                  double my = click.y();
+                  double mx = lastMouseX;
+                  double my = lastMouseY;
 
                   for (UiButton b : buttons) {
                       if (b.contains(mx, my)) {
