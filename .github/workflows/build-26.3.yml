@@ -1014,11 +1014,8 @@ jobs:
 
               @Override
               public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
-                  if (super.mouseClicked(click, doubled)) {
-                      return true;
-                  }
                   if (click.button() != 0) {
-                      return false;
+                      return super.mouseClicked(click, doubled);
                   }
                   double mx = click.x();
                   double my = click.y();
@@ -1052,7 +1049,7 @@ jobs:
                       cancel.click();
                       return true;
                   }
-                  return false;
+                  return super.mouseClicked(click, doubled);
               }
 
               @Override
@@ -1625,11 +1622,8 @@ jobs:
 
               @Override
               public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
-                  if (super.mouseClicked(click, doubled)) {
-                      return true;
-                  }
                   if (click.button() != 0) {
-                      return false;
+                      return super.mouseClicked(click, doubled);
                   }
                   double mx = click.x();
                   double my = click.y();
@@ -1650,7 +1644,7 @@ jobs:
                           return true;
                       }
                   }
-                  return false;
+                  return super.mouseClicked(click, doubled);
               }
 
               @Override
